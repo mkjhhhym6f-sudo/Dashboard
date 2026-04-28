@@ -1,0 +1,198 @@
+sectors:
+  Technology:
+    tickers: [TSX:SHOP, TSX:CSU, TSX:DSG, TSX:GIB.A]
+    etf_benchmark: TSX:XIT
+    key_metrics: [revenue_growth, gross_margin, ebitda_margin, fcf_margin, ev_sales, ev_ebitda, roic, net_debt_ebitda]
+    macro_sensitivity:
+      interest_rates: negative  # high duration assets
+      inflation: neutral
+      cad_usd: mixed  # SHOP CAD-listed USD earner
+    key_drivers:
+      - Cloud adoption and digital transformation
+      - M&A pipeline (CSU, DSG)
+      - International expansion
+      - AI integration
+    key_risks:
+      - High valuation multiples
+      - Competition from US mega-cap tech
+      - Execution on growth
+    valuation_preferred: [EV/EBITDA, EV/Sales, P/FCF]
+
+  Financials:
+    tickers: [TSX:NA, TSX:RY, TSX:TD, TSX:SLF, TSX:ONEX]
+    etf_benchmark: TSX:XFN
+    key_metrics: [roe, roa, tier1_capital, nim, efficiency_ratio, dividend_yield, p_book, p_earnings]
+    macro_sensitivity:
+      interest_rates: mixed  # NIM expansion but credit risk
+      inflation: negative  # credit quality
+      cad_usd: mixed
+      housing_market: negative
+    key_drivers:
+      - Net interest margin dynamics
+      - Wealth management growth
+      - Capital markets activity
+      - Loan growth
+    key_risks:
+      - Canadian housing market correction
+      - Credit normalization (PCL)
+      - Regulatory capital requirements
+      - US recession (TD exposure)
+    valuation_preferred: [P/E, P/Book, Dividend_Yield]
+
+  Consumer_Staples:
+    tickers: [TSX:DOL, TSX:L]
+    etf_benchmark: null
+    key_metrics: [revenue_growth, ebitda_margin, same_store_sales, fcf_yield, dividend_yield, ev_ebitda]
+    macro_sensitivity:
+      interest_rates: slightly_negative  # valuation
+      inflation: mixed  # pricing power vs cost
+      consumer_confidence: slightly_negative
+      unemployment: slightly_negative
+    key_drivers:
+      - Same-store sales growth
+      - New store openings
+      - Private label penetration
+      - Shrinkflation/price management
+    key_risks:
+      - Consumer trade-down (positive for DOL, neutral for L)
+      - Regulatory scrutiny on grocery pricing
+      - Import tariffs (DOL)
+    valuation_preferred: [EV/EBITDA, P/FCF, FCF_Yield]
+
+  Consumer_Discretionary:
+    tickers: [TSX:ATD, TSX:QSR, NASDAQ:LULU, TSX:CTC.A, TSX:MTY, TSX:MG, TSX:LNR, NYSE:GIL]
+    etf_benchmark: null
+    key_metrics: [revenue_growth, same_store_sales, ebitda_margin, fcf_yield, ev_ebitda, net_debt_ebitda]
+    macro_sensitivity:
+      interest_rates: negative
+      inflation: negative  # squeezes consumer
+      consumer_confidence: highly_positive
+      unemployment: highly_negative
+      gas_prices: negative  # except ATD
+      cad_usd: mixed
+    key_drivers:
+      - Consumer spending resilience
+      - International expansion
+      - Brand momentum
+      - Fuel and convenience transition
+    key_risks:
+      - Consumer trade-down
+      - Auto cycle (MG, LNR)
+      - Brand execution (LULU)
+    valuation_preferred: [EV/EBITDA, P/E, EV/Sales]
+
+  Industrials:
+    tickers: [TSX:WSP, TSX:CP, TSX:WCN, TSX:RCH, TSX:BBD.B, TSX:ATS]
+    etf_benchmark: null
+    key_metrics: [revenue_growth, ebitda_margin, backlog, fcf_conversion, net_debt_ebitda, ev_ebitda, roic]
+    macro_sensitivity:
+      interest_rates: slightly_negative
+      inflation: mixed  # cost pass-through varies
+      government_spending: positive  # WSP, infrastructure
+      trade_volumes: positive  # CP
+    key_drivers:
+      - Infrastructure supercycle
+      - Rail network synergies (CP)
+      - Waste volume growth (WCN)
+      - Automation demand (ATS)
+    key_risks:
+      - Government budget cuts
+      - Execution on large projects
+      - Trade war impact (CP volumes)
+    valuation_preferred: [EV/EBITDA, EV/EBIT, P/FCF]
+
+  Materials:
+    tickers: [TSX:SJ, TSX:CCL.B]
+    etf_benchmark: TSX:XMA
+    key_metrics: [revenue_growth, ebitda_margin, roic, fcf_yield, net_debt_ebitda, ev_ebitda]
+    macro_sensitivity:
+      interest_rates: neutral
+      inflation: mixed
+      housing_starts: positive  # SJ
+      commodity_prices: positive
+      cad_usd: positive  # exporters
+    key_drivers:
+      - Utility pole replacement demand (SJ)
+      - M&A-driven growth (CCL)
+      - Housing and infrastructure (SJ)
+    key_risks:
+      - Lumber/wood commodity volatility
+      - Raw material cost inflation
+      - FX headwinds
+    valuation_preferred: [EV/EBITDA, P/FCF]
+
+  Real_Estate:
+    tickers: [TSX:CSH.UN, TSX:SVI, TSX:CAR.UN]
+    etf_benchmark: null
+    key_metrics: [ffo_per_unit, affo_per_unit, nav_discount_premium, occupancy_rate, same_property_noi_growth, debt_to_gba, distribution_yield, p_affo]
+    macro_sensitivity:
+      interest_rates: highly_negative
+      inflation: mixed  # rent growth vs cost
+      housing_market: positive  # CAR.UN supply
+      demographics: positive  # CSH.UN aging
+    key_drivers:
+      - Occupancy recovery
+      - Rent growth
+      - Development pipeline
+      - Aging demographics (CSH.UN)
+    key_risks:
+      - Rate sensitivity on valuations
+      - Rent control regulation
+      - Labor costs (CSH.UN)
+    valuation_preferred: [P/AFFO, Distribution_Yield, NAV]
+
+  Utilities:
+    tickers: [TSX:FTS]
+    etf_benchmark: TSX:XUT
+    key_metrics: [dividend_growth, payout_ratio, rate_base_growth, regulatory_roe, ev_ebitda, debt_to_capital]
+    macro_sensitivity:
+      interest_rates: highly_negative  # bond proxies
+      inflation: slightly_positive  # rate base inflation indexing
+      government_policy: positive  # clean energy
+    key_drivers:
+      - Regulated rate base growth
+      - Clean energy transition investment
+      - Dividend growth track record
+    key_risks:
+      - Rising rates compress valuation
+      - Regulatory decisions
+      - Capex financing cost
+    valuation_preferred: [EV/EBITDA, P/E, Dividend_Yield]
+
+  Communication_Services:
+    tickers: [TSX:QBR.B, TSX:RCI.B]
+    etf_benchmark: null
+    key_metrics: [arpu, churn, revenue_growth, ebitda_margin, fcf_yield, net_debt_ebitda, dividend_yield]
+    macro_sensitivity:
+      interest_rates: negative  # high leverage
+      inflation: mixed
+      consumer_confidence: slightly_negative
+    key_drivers:
+      - Wireless subscriber growth
+      - ARPU improvement
+      - Bundle penetration
+      - Cost synergies (RCI post-Shaw)
+    key_risks:
+      - MVNO competition
+      - Cord-cutting
+      - High leverage (RCI)
+      - CRTC regulatory decisions
+    valuation_preferred: [EV/EBITDA, FCF_Yield, P/E]
+
+  Healthcare:
+    tickers: [TSX:SIS]
+    etf_benchmark: null
+    key_metrics: [revenue_growth, ebitda_margin, backlog, roic, net_debt_ebitda, ev_ebitda]
+    macro_sensitivity:
+      interest_rates: slightly_negative
+      demographics: highly_positive  # aging population
+      government_spending: positive  # reimbursement
+    key_drivers:
+      - Aging population demographics
+      - Accessibility equipment adoption
+      - Acquisition integration
+    key_risks:
+      - Integration of acquisitions
+      - Government reimbursement risk
+      - Thin float / liquidity
+    valuation_preferred: [EV/EBITDA, P/FCF]
