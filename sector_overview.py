@@ -1,4 +1,9 @@
-"""sector_overview.py — Page 2: Sector deep dive."""
+"""
+sector_overview.py — Page 2: Sector deep dive.
+FIEUS — Fonds d'investissement étudiant de l'Université de Sherbrooke
+
+Fix: DataFrame.applymap() removed in pandas 3 — replaced with DataFrame.map()
+"""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -13,9 +18,11 @@ from formatting import fmt_pct, is_valid
 
 
 def render():
-    render_hero("Sector Overview",
-                 "Deep dive into a sector — fundamentals, performance, ranking",
-                 "📂")
+    render_hero(
+        "Sector Overview",
+        "Deep dive into a sector — fundamentals, performance, ranking",
+        "📂",
+    )
 
     universe = load_universe()
     if universe.empty:
@@ -38,7 +45,12 @@ def render():
             st.rerun()
 
     sector_tickers = companies[companies["sector"] == selected_sector]["ticker"].tolist()
-    st.caption(f"**{len(sector_tickers)} companies** covered in {selected_sector}")
+    sector_analysts = companies[companies["sector"] == selected_sector]["analyst"].dropna().unique().tolist()
+
+    st.caption(
+        f"**{len(sector_tickers)} companies** covered in {selected_sector}"
+        + (f" · Analysts: {', '.join(sector_analysts)}" if sector_analysts else "")
+    )
 
     if not sector_tickers:
         st.info(f"No companies in {selected_sector}.")
@@ -48,22 +60,27 @@ def render():
         snap = fetch_portfolio_snapshot(sector_tickers, period="1y")
 
     if snap.empty:
-        st.warning("No data available.")
+        st.warning(
+            "No data available for this sector. "
+            "This may be a yfinance rate limit — try again in a few minutes."
+        )
         return
 
     scores, recs = [], []
     for _, row in snap.iterrows():
         fund = row.get("fundamentals", {}) or {}
-        rets = {"1d": row.get("ret_1d"), "1m": row.get("ret_1m"),
-                "3m": row.get("ret_3m"), "6m": row.get("ret_6m"),
-                "1y": row.get("ret_1y"), "ytd": row.get("ret_ytd")}
-        result = compute_composite_score(fund, rets, selected_sector,
-                                          regime="Neutral", is_etf=False)
+        rets = {
+            "1d": row.get("ret_1d"), "1m": row.get("ret_1m"),
+            "3m": row.get("ret_3m"), "6m": row.get("ret_6m"),
+            "1y": row.get("ret_1y"), "ytd": row.get("ret_ytd"),
+        }
+        result = compute_composite_score(fund, rets, selected_sector, regime="Neutral", is_etf=False)
         scores.append(result["total"])
         recs.append(result["recommendation"])
     snap["score"] = scores
     snap["rec"] = recs
 
+    # ── Sector Averages ─────────────────────────────────────────────────────
     render_section("Sector Averages")
 
     def avg_metric(rows, fund_key):
@@ -77,7 +94,7 @@ def render():
     pe_avg = avg_metric(snap, "pe_trailing")
 
     kpi_specs = [
-        ("Avg Score", f"{avg_score:.0f}/100" if avg_score is not None else "N/A",
+        ("Avg Score (FIEUS)", f"{avg_score:.0f}/100" if avg_score is not None else "N/A",
          color_for_score(avg_score)),
         ("Avg YTD", fmt_pct(snap["ret_ytd"].mean(), signed=True),
          color_for_value(snap["ret_ytd"].mean())),
@@ -96,48 +113,64 @@ def render():
         </div>
         """, unsafe_allow_html=True)
 
+    st.caption("Source: yfinance · Fundamentals may be N/A if not reported by yfinance for this ticker")
+
+    # ── Performance Heatmap ─────────────────────────────────────────────────
     render_section("Performance Comparison")
 
     hm_cols = ["ret_1d", "ret_1m", "ret_3m", "ret_6m", "ret_ytd", "ret_1y"]
     label_map = {"ret_1d": "1D", "ret_1m": "1M", "ret_3m": "3M",
                  "ret_6m": "6M", "ret_ytd": "YTD", "ret_1y": "1Y"}
-    hm_df = snap[["ticker"] + hm_cols].set_index("ticker")
-    hm_df.columns = [label_map[c] for c in hm_df.columns]
-    hm_pct = hm_df.applymap(lambda v: v * 100 if is_valid(v) else np.nan)
-    st.plotly_chart(heatmap(hm_pct, f"{selected_sector} — Return Heatmap (%)",
-                             zmin=-25, zmax=25, fmt="+.1f"),
-                     use_container_width=True)
 
+    try:
+        hm_df = snap[["ticker"] + hm_cols].set_index("ticker")
+        hm_df.columns = [label_map[c] for c in hm_df.columns]
+        # pandas 3 fix: .map() replaces removed .applymap()
+        hm_pct = hm_df.map(lambda v: float(v) * 100 if is_valid(v) else np.nan)
+        st.plotly_chart(
+            heatmap(hm_pct, f"{selected_sector} — Return Heatmap (%)", zmin=-25, zmax=25, fmt="+.1f"),
+            use_container_width=True,
+        )
+        st.caption("Source: yfinance adjusted close · Missing data shown as blank")
+    except Exception as e:
+        st.warning(f"Performance heatmap unavailable: {e}")
+
+    # ── Fundamentals Table ──────────────────────────────────────────────────
     render_section("Fundamentals Snapshot")
 
     rows_data = []
     for _, row in snap.iterrows():
         fund = row.get("fundamentals", {}) or {}
         rev_g = fund.get("revenue_growth_yoy")
-        ebm = fund.get("ebitda_margin")
-        roe = fund.get("roe")
-        ev_e = fund.get("ev_ebitda")
-        pe = fund.get("pe_trailing") or fund.get("pe_forward")
-        fcf = fund.get("fcf")
-        mc = fund.get("market_cap")
+        ebm   = fund.get("ebitda_margin")
+        roe   = fund.get("roe")
+        ev_e  = fund.get("ev_ebitda")
+        pe    = fund.get("pe_trailing") or fund.get("pe_forward")
+        fcf   = fund.get("fcf")
+        mc    = fund.get("market_cap")
         fcf_y = (fcf / mc) if (is_valid(fcf) and is_valid(mc) and mc > 0) else None
 
         rows_data.append({
-            "Ticker": row["ticker"],
-            "Company": (row["name"] or "")[:25],
-            "Rev Growth": fmt_pct(rev_g, signed=True),
-            "EBITDA Mgn": fmt_pct(ebm),
-            "ROE": fmt_pct(roe),
-            "EV/EBITDA": f"{ev_e:.1f}x" if is_valid(ev_e) and ev_e > 0 else "N/A",
-            "P/E": f"{pe:.1f}x" if is_valid(pe) and pe > 0 else "N/A",
-            "FCF Yield": fmt_pct(fcf_y),
-            "YTD": fmt_pct(row.get("ret_ytd"), signed=True),
-            "Score": f"{row['score']:.0f}" if is_valid(row.get("score")) else "N/A",
-            "Rec": row.get("rec", "N/A"),
+            "Ticker":       row["ticker"],
+            "Company":      (row.get("name") or "")[:25],
+            "Rev Growth":   fmt_pct(rev_g, signed=True),
+            "EBITDA Mgn":   fmt_pct(ebm),
+            "ROE":          fmt_pct(roe),
+            "EV/EBITDA":    f"{ev_e:.1f}x" if is_valid(ev_e) and ev_e > 0 else "N/A",
+            "P/E":          f"{pe:.1f}x"   if is_valid(pe)   and pe  > 0 else "N/A",
+            "FCF Yield":    fmt_pct(fcf_y),
+            "YTD":          fmt_pct(row.get("ret_ytd"), signed=True),
+            "Score (FIEUS)": f"{row['score']:.0f}/100" if is_valid(row.get("score")) else "N/A",
+            "Signal":       row.get("rec", "N/A"),
         })
 
     st.dataframe(pd.DataFrame(rows_data), use_container_width=True, hide_index=True)
+    st.caption(
+        "Source: yfinance · N/A = data not available from yfinance for this ticker. "
+        "Score and Signal = FIEUS screening model — preliminary only."
+    )
 
+    # ── Top / Bottom performers ─────────────────────────────────────────────
     c1, c2 = st.columns(2)
 
     def render_perf_card(rows, title):
@@ -152,7 +185,7 @@ def render():
                         margin-bottom:4px;border-left:3px solid {color}">
                 <div>
                     <span style="color:{UDES_GOLD};font-weight:600">{r['ticker']}</span>
-                    <span style="color:{TEXT_MUTED};font-size:11px;margin-left:8px">{(r['name'] or '')[:30]}</span>
+                    <span style="color:{TEXT_MUTED};font-size:11px;margin-left:8px">{(r.get('name') or '')[:30]}</span>
                 </div>
                 <span style="color:{color};font-weight:600">{pct}</span>
             </div>

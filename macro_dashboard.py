@@ -1,6 +1,12 @@
 """
 Page 3 — Macro Dashboard
-FRED + Bank of Canada indicators, regime scoring, sector impact matrix.
+FIEUS — Fonds d'investissement étudiant de l'Université de Sherbrooke
+
+Fixes:
+  - render_hero() and render_section() return None — must be called directly,
+    NOT wrapped in st.markdown(...) which would pass None to it.
+  - sig['indicator'] → sig['name'] to match what compute_macro_regime() returns.
+  - Robust to missing FRED key and missing BoC data.
 """
 import streamlit as st
 import pandas as pd
@@ -14,77 +20,119 @@ from charts import macro_indicator_chart
 
 
 def _value(v, fmt="{:.2f}", suffix=""):
-    if not is_valid(v): return "N/A"
-    try: return f"{fmt.format(v)}{suffix}"
-    except: return "N/A"
+    if not is_valid(v):
+        return "N/A"
+    try:
+        return "{}{}".format(fmt.format(v), suffix)
+    except Exception:
+        return "N/A"
 
 
 def render():
-    st.markdown(render_hero(
+    # render_hero() calls st.markdown internally and returns None
+    # Do NOT wrap it in st.markdown() — that would pass None as the string
+    render_hero(
         "Macro Dashboard",
         "Federal Reserve · Bank of Canada · regime scoring · sector impact",
-        "🌍"
-    ), unsafe_allow_html=True)
+        "🌍",
+    )
 
     with st.spinner("Fetching macro data (FRED + Bank of Canada)..."):
-        snap = get_macro_snapshot()
-        regime = compute_macro_regime(snap)
+        try:
+            snap = get_macro_snapshot()
+            regime = compute_macro_regime(snap)
+        except Exception as e:
+            st.error(f"Error loading macro data: {e}")
+            snap = {}
+            regime = {"regime": "Unknown", "score": 50, "color": TEXT_MUTED, "signals": []}
 
     if not snap.get("fred_available") and not snap.get("boc_available"):
-        st.error("⚠️ No macro data available. FRED key missing and Bank of Canada API unreachable.")
+        st.error(
+            "⚠️ No macro data available. "
+            "FRED key missing and Bank of Canada API unreachable."
+        )
         st.info("Add FRED_API_KEY to Streamlit Cloud secrets to enable US data.")
 
-    if not snap.get("fred_available"):
-        st.warning("ℹ️ FRED API key not set — US macro data unavailable. Bank of Canada data still active.")
+    elif not snap.get("fred_available"):
+        st.info(
+            "ℹ️ FRED API key not set — US macro data unavailable. "
+            "Bank of Canada data still active. "
+            "Add `FRED_API_KEY` in Streamlit Cloud secrets to enable US indicators."
+        )
 
-    # ─── Regime banner ──────────────────────────────
-    rc = regime["color"]
+    # ── Regime banner ────────────────────────────────────────────────────────
+    rc = regime.get("color", TEXT_MUTED)
+    regime_name = regime.get("regime", "Unknown")
+    regime_score = regime.get("score", 50)
     regime_emoji = {
         "Favorable": "🟢", "Neutral": "🟡",
-        "Unfavorable": "🟠", "Stress": "🔴"
-    }.get(regime["regime"], "⚪")
+        "Unfavorable": "🟠", "Stress": "🔴",
+    }.get(regime_name, "⚪")
+
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, {rc}22, {BG_CARD});
                 border:1px solid {rc}66; border-radius:12px;
                 padding:1.5rem; margin-bottom:1.5rem;">
         <div style="display:flex; align-items:center; gap:2rem; flex-wrap:wrap;">
             <div>
-                <p style="color:{TEXT_MUTED}; font-size:0.75rem; margin:0; text-transform:uppercase; letter-spacing:1px;">Macro Regime</p>
+                <p style="color:{TEXT_MUTED}; font-size:0.75rem; margin:0;
+                           text-transform:uppercase; letter-spacing:1px;">
+                    Macro Regime
+                </p>
                 <p style="color:{rc}; font-size:2.2rem; font-weight:900; margin:0;
                            font-family:Merriweather,serif;">
-                    {regime_emoji} {regime['regime'].upper()}
+                    {regime_emoji} {regime_name.upper()}
                 </p>
             </div>
             <div style="flex:1; min-width:200px;">
                 <div style="background:#1F4036; border-radius:6px; height:12px;">
-                    <div style="background:{rc}; width:{regime['score']}%; height:12px;
+                    <div style="background:{rc}; width:{regime_score}%; height:12px;
                                  border-radius:6px;"></div>
                 </div>
                 <p style="color:{TEXT_MUTED}; font-size:0.85rem; margin:0.5rem 0 0 0;">
-                    Score: <strong style="color:{rc};">{regime['score']}/100</strong>
+                    Score: <strong style="color:{rc};">{regime_score}/100</strong>
+                    &nbsp;·&nbsp;
+                    <span style="font-size:0.78rem;">
+                        FIEUS macro scoring model — based on available data
+                    </span>
                 </p>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # ─── Signals ────────────────────────────────────
-    st.markdown(render_section("Macro Signals"), unsafe_allow_html=True)
+    # ── Signals ──────────────────────────────────────────────────────────────
+    # render_section() calls st.markdown internally and returns None
+    render_section("Macro Signals")
 
     impact_color = {
-        "positive": POSITIVE, "slightly_positive": "#86EFAC",
-        "neutral":  TEXT_MUTED, "slightly_negative": "#FCA5A5",
-        "negative": NEGATIVE, "highly_positive": POSITIVE,
-        "highly_negative": NEGATIVE,
+        "positive":         POSITIVE,
+        "slightly_positive": "#86EFAC",
+        "neutral":          TEXT_MUTED,
+        "slightly_negative": "#FCA5A5",
+        "negative":         NEGATIVE,
+        "highly_positive":  POSITIVE,
+        "highly_negative":  NEGATIVE,
     }
 
-    if not regime["signals"]:
-        st.info("No macro signals available — try connecting a FRED API key.")
+    signals = regime.get("signals", [])
+    if not signals:
+        st.info(
+            "No macro signals available — data may be incomplete. "
+            "Add a FRED API key to see US macro signals."
+        )
     else:
-        for sig in regime["signals"]:
-            color = impact_color.get(sig["impact"], TEXT_MUTED)
-            icon = "✅" if "positive" in sig["impact"] else \
-                   "🔴" if "negative" in sig["impact"] else "⚪"
+        for sig in signals:
+            # macro_data.py uses 'name' key — NOT 'indicator'
+            # FIX: was sig['indicator'] which caused KeyError
+            sig_name  = sig.get("name") or sig.get("indicator") or "Unknown"
+            sig_value = sig.get("value", "N/A")
+            sig_note  = sig.get("note", "")
+            sig_impact = sig.get("impact", "neutral")
+            color = impact_color.get(sig_impact, TEXT_MUTED)
+            icon  = "✅" if "positive" in sig_impact else \
+                    "🔴" if "negative" in sig_impact else "⚪"
+
             st.markdown(f"""
             <div style="display:flex; align-items:center; gap:1rem;
                         background:{BG_CARD}; border-left:3px solid {color};
@@ -92,94 +140,121 @@ def render():
                 <span style="font-size:1.1rem;">{icon}</span>
                 <div style="flex:1;">
                     <span style="color:{TEXT_PRIMARY}; font-weight:600; font-size:0.9rem;">
-                        {sig['indicator']}
+                        {sig_name}
                     </span>
                     <span style="color:{TEXT_SECONDARY}; font-size:0.85rem;">
-                         — {sig['note']}
+                         — {sig_note}
                     </span>
                 </div>
                 <span style="color:{color}; font-weight:700; font-size:0.95rem;
                              min-width:80px; text-align:right;">
-                    {sig['value']}
+                    {sig_value}
                 </span>
             </div>
             """, unsafe_allow_html=True)
 
-    # ─── Tabs ───────────────────────────────────────
-    st.markdown(render_section("Key Indicators"), unsafe_allow_html=True)
+    # ── Key Indicators Tabs ───────────────────────────────────────────────────
+    render_section("Key Indicators")
 
     tabs = st.tabs(["🇨🇦 Canada", "🇺🇸 United States", "📈 Rates & FX", "🛢️ Commodities"])
 
     with tabs[0]:
         c1, c2, c3 = st.columns(3)
         c1.metric("BoC Policy Rate", _value(snap.get("boc_policy_rate"), "{:.2f}", "%"))
-        c2.metric("CA 10Y Yield",    _value(snap.get("ca_10y_yield"), "{:.2f}", "%"))
-        c3.metric("CA 2Y Yield",     _value(snap.get("ca_2y_yield"), "{:.2f}", "%"))
+        c2.metric("CA 10Y Yield",    _value(snap.get("ca_10y_yield"),    "{:.2f}", "%"))
+        c3.metric("CA 2Y Yield",     _value(snap.get("ca_2y_yield"),     "{:.2f}", "%"))
 
         ca_curve = snap.get("ca_yield_curve")
         if is_valid(ca_curve):
             color = POSITIVE if ca_curve > 0 else NEGATIVE
-            st.markdown(f"""
-            <p style="color:{color}; font-weight:600;">
-                Canada Yield Curve (10Y-2Y): {_value(ca_curve, '{:.2f}', '%')}
-            </p>""", unsafe_allow_html=True)
+            st.markdown(
+                f'<p style="color:{color}; font-weight:600;">'
+                f'Canada Yield Curve (10Y-2Y): {_value(ca_curve, "{:.2f}", "%")}'
+                f'</p>',
+                unsafe_allow_html=True,
+            )
 
         boc_series = snap.get("boc_policy_rate_series")
         if boc_series is not None and not boc_series.empty:
-            fig = macro_indicator_chart(boc_series.tail(120),
-                                         "Bank of Canada Policy Rate (%)",
-                                         color=UDES_GOLD)
-            st.plotly_chart(fig, use_container_width=True)
-        st.markdown('<span class="data-source">Source: Bank of Canada Valet API</span>',
-                    unsafe_allow_html=True)
+            try:
+                fig = macro_indicator_chart(boc_series.tail(120),
+                                             "Bank of Canada Policy Rate (%)",
+                                             color=UDES_GOLD)
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.caption(f"Chart unavailable: {e}")
+
+        st.caption("Source: Bank of Canada Valet API — free, no key required")
 
     with tabs[1]:
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Fed Funds Rate", _value(snap.get("fed_funds_rate"), "{:.2f}", "%"))
-        c2.metric("US CPI YoY",     _value(snap.get("us_cpi_yoy"), "{:.1f}", "%"))
-        c3.metric("Unemployment",    _value(snap.get("us_unemployment"), "{:.1f}", "%"))
-        c4.metric("Consumer Conf",   _value(snap.get("us_consumer_conf"), "{:.1f}"))
+        c1.metric("Fed Funds Rate", _value(snap.get("fed_funds_rate"),    "{:.2f}", "%"))
+        c2.metric("US CPI YoY",     _value(snap.get("us_cpi_yoy"),        "{:.1f}", "%"))
+        c3.metric("Unemployment",    _value(snap.get("us_unemployment"),   "{:.1f}", "%"))
+        c4.metric("Consumer Conf",   _value(snap.get("us_consumer_conf"),  "{:.1f}"))
 
-        fed_series = snap.get("fed_funds_rate_series")
-        if fed_series is not None and not fed_series.empty:
-            fig = macro_indicator_chart(fed_series.tail(120),
-                                         "US Federal Funds Rate (%)",
-                                         color=POSITIVE)
-            st.plotly_chart(fig, use_container_width=True)
-        st.markdown('<span class="data-source">Source: Federal Reserve Economic Data (FRED)</span>',
-                    unsafe_allow_html=True)
+        if not snap.get("fred_available"):
+            st.warning(
+                "US data unavailable — FRED API key not configured. "
+                "Add `FRED_API_KEY` in Streamlit Cloud secrets."
+            )
+        else:
+            fed_series = snap.get("fed_funds_rate_series")
+            if fed_series is not None and not fed_series.empty:
+                try:
+                    fig = macro_indicator_chart(fed_series.tail(120),
+                                                 "US Federal Funds Rate (%)",
+                                                 color=POSITIVE)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.caption(f"Chart unavailable: {e}")
+            st.caption("Source: Federal Reserve Economic Data (FRED) — requires API key")
 
     with tabs[2]:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("US 10Y Yield",   _value(snap.get("us_10y_yield"), "{:.2f}", "%"))
-        c2.metric("US 2Y Yield",    _value(snap.get("us_2y_yield"), "{:.2f}", "%"))
+        c2.metric("US 2Y Yield",    _value(snap.get("us_2y_yield"),  "{:.2f}", "%"))
         yc = snap.get("us_yield_curve")
-        c3.metric("US Yield Curve", _value(yc, "{:.2f}", "%"))
+        c3.metric("US Yield Curve", _value(yc, "{:.2f}", "%"),
+                   delta="Normal" if (is_valid(yc) and yc > 0) else ("Inverted" if is_valid(yc) else None))
         cad = snap.get("cad_usd")
-        c4.metric("USD/CAD",        _value(cad, "{:.4f}"))
+        c4.metric("USD/CAD", _value(cad, "{:.4f}"))
 
         cad_series = snap.get("cad_usd_series")
         if cad_series is not None and not cad_series.empty:
-            fig = macro_indicator_chart(cad_series.tail(120),
-                                         "USD/CAD Exchange Rate",
-                                         color=INFO)
-            st.plotly_chart(fig, use_container_width=True)
+            try:
+                fig = macro_indicator_chart(cad_series.tail(120),
+                                             "USD/CAD Exchange Rate",
+                                             color=INFO)
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.caption(f"Chart unavailable: {e}")
+        st.caption("Source: FRED (US yields) · Bank of Canada (CAD/USD)")
 
     with tabs[3]:
         c1, c2 = st.columns(2)
-        c1.metric("WTI Crude Oil",  _value(snap.get("wti_oil"), "${:.2f}"))
-        c2.metric("US Retail Sales", _value(snap.get("us_retail_sales"), "${:,.0f}M") if is_valid(snap.get("us_retail_sales")) else "N/A")
+        c1.metric("WTI Crude Oil", _value(snap.get("wti_oil"), "${:.2f}"))
+        rs = snap.get("us_retail_sales")
+        c2.metric("US Retail Sales",
+                   "${:,.0f}M".format(rs) if is_valid(rs) else "N/A")
 
         wti_series = snap.get("wti_oil_series")
         if wti_series is not None and not wti_series.empty:
-            fig = macro_indicator_chart(wti_series.tail(120),
-                                         "WTI Crude Oil (USD/barrel)",
-                                         color="#F97316")
-            st.plotly_chart(fig, use_container_width=True)
+            try:
+                fig = macro_indicator_chart(wti_series.tail(120),
+                                             "WTI Crude Oil (USD/barrel)",
+                                             color="#F97316")
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.caption(f"Chart unavailable: {e}")
+        st.caption("Source: FRED (WTI, retail sales)")
 
-    # ─── Sector impact matrix ───────────────────────
-    st.markdown(render_section("Sector Impact Matrix"), unsafe_allow_html=True)
-    st.markdown(f'<p style="color:{TEXT_SECONDARY}; font-size:0.88rem;">How current macro conditions affect each sector.</p>', unsafe_allow_html=True)
+    # ── Sector Impact Matrix ──────────────────────────────────────────────────
+    render_section("Sector Impact Matrix")
+    st.caption(
+        "How the current macro regime may affect each sector — "
+        "illustrative framework based on FIEUS sector analysis, not predictive."
+    )
 
     impact_pill = {
         "positive": ("🟢", POSITIVE),
@@ -215,5 +290,5 @@ def render():
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown(f'<p class="data-source">Last updated: {snap.get("last_updated")}</p>',
-                unsafe_allow_html=True)
+    last_updated = snap.get("last_updated", "unknown")
+    st.caption(f"Last updated: {last_updated} · Source: FRED + Bank of Canada Valet")
