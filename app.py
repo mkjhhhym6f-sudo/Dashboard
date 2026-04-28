@@ -1,177 +1,112 @@
 """
-Fund Dashboard - Main Application Entry Point
-Student Investment Fund - Institutional Grade Analytics Platform
+app.py — SIF Analytics: Université de Sherbrooke Student Investment Fund
+Vert & Or — Main Streamlit entry point.
+
+All page modules are at the root level (flat structure) — no subfolders.
+Run locally:    streamlit run app.py
+Deploy:         Streamlit Cloud, Main file path = app.py
 """
 
 import streamlit as st
-from pathlib import Path
-import sys
+from datetime import datetime
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-
-# Page configuration
+# ── Page config (must be first Streamlit call) ──────────────────────────────
 st.set_page_config(
-    page_title="Fund Dashboard | SIF Analytics",
+    page_title="SIF Analytics · Vert & Or",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
-    menu_items={
-        "Get Help": None,
-        "Report a bug": None,
-        "About": "Student Investment Fund Analytics Platform v1.0"
-    }
 )
 
-# Custom CSS
-st.markdown("""
-<style>
-    /* Main theme */
-    :root {
-        --primary: #0f4c81;
-        --accent: #00b4d8;
-        --positive: #06d6a0;
-        --negative: #ef233c;
-        --warning: #ffd60a;
-        --neutral: #8d99ae;
-        --bg-dark: #0a0e1a;
-        --bg-card: #111827;
-        --text-primary: #f8fafc;
-        --text-secondary: #94a3b8;
-    }
+# ── Theme + CSS ─────────────────────────────────────────────────────────────
+from theme import (GLOBAL_CSS, UDES_GREEN_DARK, UDES_GREEN, UDES_GOLD,
+                    UDES_GOLD_LIGHT, TEXT_PRIMARY, TEXT_MUTED)
+st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
-    .main-header {
-        background: linear-gradient(135deg, #0f4c81 0%, #1a1a2e 100%);
-        padding: 1.5rem 2rem;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-        border: 1px solid rgba(0, 180, 216, 0.2);
-    }
+# ── Page modules (flat — same dir as app.py, no "pages." prefix) ───────────
+import fund_overview
+import sector_overview
+import macro_dashboard
+import company_deep_dive
+import peer_comparison
+import valuation_center
+import risk_monitor
+import analyst_center
+import data_quality
 
-    .metric-card {
-        background: #111827;
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 10px;
-        padding: 1rem;
-        text-align: center;
-    }
+# ── Page registry ──────────────────────────────────────────────────────────
+PAGES = {
+    "Fund Overview":     ("🏠", fund_overview),
+    "Sector Overview":   ("📂", sector_overview),
+    "Macro Dashboard":   ("🌍", macro_dashboard),
+    "Company Deep Dive": ("🔍", company_deep_dive),
+    "Peer Comparison":   ("⚖️", peer_comparison),
+    "Valuation Center":  ("💰", valuation_center),
+    "Risk Monitor":      ("⚠️", risk_monitor),
+    "Analyst Center":    ("👤", analyst_center),
+    "Data Quality":      ("🔧", data_quality),
+}
 
-    .positive { color: #06d6a0 !important; }
-    .negative { color: #ef233c !important; }
-    .warning  { color: #ffd60a !important; }
-    .neutral  { color: #8d99ae !important; }
+# ════════════════════════════════════════════════════════════════════════════
+# SIDEBAR
+# ════════════════════════════════════════════════════════════════════════════
 
-    .score-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-weight: bold;
-        font-size: 0.85rem;
-    }
-
-    .score-high   { background: rgba(6,214,160,0.2); color: #06d6a0; border: 1px solid #06d6a0; }
-    .score-medium { background: rgba(255,214,10,0.2); color: #ffd60a; border: 1px solid #ffd60a; }
-    .score-low    { background: rgba(239,35,60,0.2);  color: #ef233c; border: 1px solid #ef233c; }
-
-    .alert-box {
-        padding: 0.75rem 1rem;
-        border-radius: 8px;
-        margin: 0.25rem 0;
-        font-size: 0.875rem;
-    }
-    .alert-critical { background: rgba(239,35,60,0.15);  border-left: 3px solid #ef233c; }
-    .alert-warning  { background: rgba(255,214,10,0.15); border-left: 3px solid #ffd60a; }
-    .alert-info     { background: rgba(0,180,216,0.15);  border-left: 3px solid #00b4d8; }
-    .alert-ok       { background: rgba(6,214,160,0.15);  border-left: 3px solid #06d6a0; }
-
-    /* Sidebar styling */
-    .css-1d391kg { background-color: #0d1117; }
-
-    /* Data source tag */
-    .data-source {
-        font-size: 0.7rem;
-        color: #64748b;
-        font-style: italic;
-    }
-
-    /* Section headers */
-    .section-header {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #00b4d8;
-        border-bottom: 1px solid rgba(0,180,216,0.3);
-        padding-bottom: 0.5rem;
-        margin: 1rem 0 0.75rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Navigation
-def main():
-    with st.sidebar:
-        st.markdown("""
-        <div style="text-align:center; padding: 1rem 0;">
-            <h2 style="color:#00b4d8; margin:0; font-size:1.4rem;">📊 SIF Analytics</h2>
-            <p style="color:#64748b; font-size:0.75rem; margin:0.25rem 0 0 0;">Student Investment Fund</p>
+with st.sidebar:
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,{UDES_GREEN_DARK} 0%,{UDES_GREEN} 100%);
+                border-radius:10px;padding:18px 18px;margin-bottom:18px;
+                border-left:4px solid {UDES_GOLD}">
+        <div style="color:{UDES_GOLD};font-size:11px;font-weight:700;letter-spacing:1.5px">SIF ANALYTICS</div>
+        <div style="color:{TEXT_PRIMARY};font-size:18px;font-weight:800;font-family:Merriweather,Georgia,serif;margin-top:2px">
+            Vert &amp; Or
         </div>
-        <hr style="border-color:rgba(255,255,255,0.1); margin:0.5rem 0 1rem 0;">
-        """, unsafe_allow_html=True)
+        <div style="color:{UDES_GOLD_LIGHT};font-size:10px;letter-spacing:0.5px;margin-top:4px">
+            Université de Sherbrooke
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        page = st.selectbox(
-            "Navigation",
-            options=[
-                "🏠 Fund Overview",
-                "📂 Sector Overview",
-                "🌍 Macro Dashboard",
-                "🔍 Company Deep Dive",
-                "⚖️ Peer Comparison",
-                "💰 Valuation Center",
-                "⚠️ Risk Monitor",
-                "👤 Analyst Center",
-                "🔧 Data Quality",
-            ],
-            label_visibility="collapsed"
-        )
+    st.markdown(f'<div style="color:{TEXT_MUTED};font-size:10px;font-weight:700;'
+                 f'letter-spacing:1.5px;margin:8px 0 6px 0">NAVIGATION</div>',
+                 unsafe_allow_html=True)
 
-        st.markdown("---")
-        st.markdown("<p style='color:#64748b; font-size:0.75rem;'>Data sources: yfinance · FRED · Banque du Canada · Manual</p>", unsafe_allow_html=True)
+    page_name = st.radio(
+        "Navigation",
+        options=list(PAGES.keys()),
+        format_func=lambda k: f"{PAGES[k][0]}  {k}",
+        label_visibility="collapsed",
+    )
 
-        # Cache management
-        with st.expander("⚙️ Settings"):
-            st.button("🔄 Refresh All Data", help="Clears cache and re-fetches all data")
-            st.button("📥 Export to CSV", help="Export current view to CSV")
-            st.checkbox("Show Data Sources", value=True, key="show_sources")
-            st.checkbox("CAD Display", value=True, key="display_cad")
+    st.markdown("---")
+    st.markdown(f'<div style="color:{TEXT_MUTED};font-size:10px;font-weight:700;'
+                 f'letter-spacing:1.5px;margin:8px 0 6px 0">SESSION</div>',
+                 unsafe_allow_html=True)
 
-    # Route to pages
-    if page == "🏠 Fund Overview":
-        from pages.fund_overview import render
-        render()
-    elif page == "📂 Sector Overview":
-        from pages.sector_overview import render
-        render()
-    elif page == "🌍 Macro Dashboard":
-        from pages.macro_dashboard import render
-        render()
-    elif page == "🔍 Company Deep Dive":
-        from pages.company_deep_dive import render
-        render()
-    elif page == "⚖️ Peer Comparison":
-        from pages.peer_comparison import render
-        render()
-    elif page == "💰 Valuation Center":
-        from pages.valuation_center import render
-        render()
-    elif page == "⚠️ Risk Monitor":
-        from pages.risk_monitor import render
-        render()
-    elif page == "👤 Analyst Center":
-        from pages.analyst_center import render
-        render()
-    elif page == "🔧 Data Quality":
-        from pages.data_quality import render
-        render()
+    if st.button("🔄 Clear Cache & Reload", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
+    # Footer
+    st.markdown(f"""
+    <div style="margin-top:60px;color:{TEXT_MUTED};font-size:10px;line-height:1.6">
+        <div>Last refresh: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+        <div style="margin-top:4px">Data: yfinance · FRED · BoC Valet</div>
+        <div style="margin-top:6px;color:{TEXT_MUTED};font-size:9px;font-style:italic">
+            Educational tool — not investment advice
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
-if __name__ == "__main__":
-    main()
+# ════════════════════════════════════════════════════════════════════════════
+# RENDER PAGE
+# ════════════════════════════════════════════════════════════════════════════
+
+try:
+    _, module = PAGES[page_name]
+    module.render()
+except Exception as e:
+    st.error(f"⚠️ Error rendering page '{page_name}'")
+    st.exception(e)
+    st.info("Try clicking '🔄 Clear Cache & Reload' in the sidebar. "
+             "If the issue persists, check your internet connection.")

@@ -1,418 +1,272 @@
 """
-Valuation Analytics
-- DCF (simplified)
-- Reverse DCF
-- Sensitivity Tables
-- Multiples analysis
-- WACC estimation
+valuation.py — DCF, Reverse DCF, sensitivity, scenarios.
+FCF-based simplified DCF — robust to missing inputs. NEVER raises.
 """
-
 import numpy as np
 import pandas as pd
-from typing import Optional
+from formatting import safe_float, is_valid
 
 
-def estimate_wacc(
-    beta: float = 1.0,
-    risk_free_rate: float = 0.045,  # ~10Y CA gov bond
-    equity_risk_premium: float = 0.055,
-    target_debt_weight: float = 0.30,
-    cost_of_debt: float = 0.055,
-    tax_rate: float = 0.265,  # Canadian corporate tax
-) -> dict:
-    """
-    Estimate WACC using CAPM.
-    Returns WACC and components.
-    """
+def estimate_wacc(beta: float = 1.0,
+                  risk_free_rate: float = 0.045,
+                  equity_risk_premium: float = 0.055,
+                  debt_weight: float = 0.30,
+                  cost_of_debt: float = 0.055,
+                  tax_rate: float = 0.265) -> dict:
+    """CAPM-based WACC."""
+    beta = safe_float(beta, 1.0)
     cost_of_equity = risk_free_rate + beta * equity_risk_premium
-    equity_weight = 1 - target_debt_weight
-    after_tax_cost_of_debt = cost_of_debt * (1 - tax_rate)
-    wacc = equity_weight * cost_of_equity + target_debt_weight * after_tax_cost_of_debt
-
+    after_tax_cod  = cost_of_debt * (1 - tax_rate)
+    wacc = (1 - debt_weight) * cost_of_equity + debt_weight * after_tax_cod
     return {
-        "wacc":               round(wacc, 4),
-        "cost_of_equity":     round(cost_of_equity, 4),
-        "after_tax_cod":      round(after_tax_cost_of_debt, 4),
-        "equity_weight":      round(equity_weight, 4),
-        "debt_weight":        round(target_debt_weight, 4),
-        "risk_free_rate":     risk_free_rate,
-        "erp":                equity_risk_premium,
-        "beta":               beta,
-        "tax_rate":           tax_rate,
+        "wacc": wacc,
+        "cost_of_equity": cost_of_equity,
+        "after_tax_cod": after_tax_cod,
+        "beta": beta,
     }
 
 
-def dcf_valuation(
-    revenue_base: float,
-    revenue_growth_rates: list,  # List of growth rates for projection years
-    ebitda_margin_target: float,
-    capex_pct_revenue: float,
-    tax_rate: float,
-    nwc_change_pct: float,
-    wacc: float,
-    terminal_growth_rate: float,
-    net_debt: float,
-    shares_outstanding: float,
-    da_pct_revenue: float = 0.05,  # D&A as % of revenue
-) -> dict:
+def dcf_fcf(base_fcf: float,
+            growth_phase1: float = 0.10,
+            growth_phase2: float = 0.05,
+            terminal_growth: float = 0.025,
+            wacc: float = 0.09,
+            projection_years: int = 10,
+            net_debt: float = 0.0,
+            shares_outstanding: float = 1.0) -> dict:
     """
-    Simplified 5-10 year DCF model.
-    Returns implied share price and key outputs.
+    Simple FCF-compounding DCF. Phase 1 covers ~60% of years at growth_phase1,
+    phase 2 covers the rest at growth_phase2.
+    Returns dict with intrinsic_value_per_share, EV, projections, etc.
     """
-    years = len(revenue_growth_rates)
-    revenues = []
-    fcfs = []
-    pv_fcfs = []
-
-    rev = revenue_base
-    for i, g in enumerate(revenue_growth_rates):
-        rev = rev * (1 + g)
-        revenues.append(rev)
-
-        ebitda = rev * ebitda_margin_target
-        da = rev * da_pct_revenue
-        ebit = ebitda - da
-        nopat = ebit * (1 - tax_rate)
-        capex = rev * capex_pct_revenue
-        nwc_change = rev * nwc_change_pct
-        fcf = nopat + da - capex - nwc_change
-        fcfs.append(fcf)
-
-        discount_factor = 1 / (1 + wacc) ** (i + 1)
-        pv_fcfs.append(fcf * discount_factor)
-
-    # Terminal value (Gordon Growth)
-    terminal_fcf = fcfs[-1] * (1 + terminal_growth_rate)
-    terminal_value = terminal_fcf / (wacc - terminal_growth_rate)
-    pv_terminal = terminal_value / (1 + wacc) ** years
-
-    # Enterprise value and equity value
-    pv_fcf_total = sum(pv_fcfs)
-    enterprise_value = pv_fcf_total + pv_terminal
-    equity_value = enterprise_value - net_debt
-    price_per_share = equity_value / shares_outstanding if shares_outstanding > 0 else None
-
-    tv_pct = pv_terminal / enterprise_value * 100 if enterprise_value > 0 else None
-
-    return {
-        "years":             years,
-        "revenues":          revenues,
-        "fcfs":              fcfs,
-        "pv_fcfs":           pv_fcfs,
-        "pv_fcf_total":      pv_fcf_total,
-        "terminal_value":    terminal_value,
-        "pv_terminal":       pv_terminal,
-        "enterprise_value":  enterprise_value,
-        "equity_value":      equity_value,
-        "price_per_share":   price_per_share,
-        "tv_pct_of_ev":      tv_pct,
-        "wacc":              wacc,
-        "terminal_growth":   terminal_growth_rate,
-    }
-
-
-def reverse_dcf(
-    current_price: float,
-    net_debt: float,
-    shares_outstanding: float,
-    revenue_base: float,
-    ebitda_margin_target: float,
-    capex_pct_revenue: float,
-    tax_rate: float,
-    nwc_change_pct: float,
-    wacc: float,
-    terminal_growth_rate: float = 0.025,
-    da_pct_revenue: float = 0.05,
-    years: int = 10,
-) -> dict:
-    """
-    Reverse DCF: Find the revenue growth rate implied by the current stock price.
-    Uses binary search over growth rate.
-    """
-    # Current equity value = market cap
-    market_cap = current_price * shares_outstanding
-    target_ev = market_cap + net_debt
-
-    # Binary search for growth rate
-    def compute_ev(g_rate):
-        rates = [g_rate] * years
-        result = dcf_valuation(
-            revenue_base, rates, ebitda_margin_target, capex_pct_revenue,
-            tax_rate, nwc_change_pct, wacc, terminal_growth_rate, net_debt,
-            shares_outstanding, da_pct_revenue
-        )
-        return result["enterprise_value"]
-
-    low, high = -0.20, 0.60
-    for _ in range(60):  # 60 iterations = high precision
-        mid = (low + high) / 2
-        ev = compute_ev(mid)
-        if ev < target_ev:
-            low = mid
-        else:
-            high = mid
-        if abs(high - low) < 0.0001:
-            break
-
-    implied_growth = (low + high) / 2
-
-    # Contextual assessment
-    if implied_growth >= 0.25:
-        assessment = "Very High — market is pricing in exceptional growth that may be hard to achieve"
-        risk_level = "HIGH"
-    elif implied_growth >= 0.15:
-        assessment = "High — requires sustained strong growth to justify valuation"
-        risk_level = "MODERATE-HIGH"
-    elif implied_growth >= 0.08:
-        assessment = "Moderate — achievable for a well-positioned company"
-        risk_level = "MODERATE"
-    elif implied_growth >= 0.03:
-        assessment = "Low — conservatively priced; limited growth required"
-        risk_level = "LOW"
-    else:
-        assessment = "Very Low / Negative — market may be pricing in decline"
-        risk_level = "LOW (Cheap or Value Trap)"
-
-    return {
-        "implied_annual_growth":    round(implied_growth, 4),
-        "implied_annual_growth_pct":round(implied_growth * 100, 2),
-        "assessment":               assessment,
-        "risk_level":               risk_level,
-        "market_cap":               market_cap,
-        "target_ev":                target_ev,
-        "wacc":                     wacc,
-        "terminal_growth":          terminal_growth_rate,
-        "years":                    years,
-    }
-
-
-def sensitivity_table(
-    revenue_base: float,
-    wacc_range: list,
-    growth_range: list,
-    ebitda_margin_target: float,
-    capex_pct_revenue: float,
-    tax_rate: float,
-    nwc_change_pct: float,
-    net_debt: float,
-    shares_outstanding: float,
-    terminal_growth_rate: float = 0.025,
-    years: int = 7,
-    da_pct_revenue: float = 0.05,
-) -> pd.DataFrame:
-    """
-    Generate a WACC vs Revenue Growth sensitivity table of implied share prices.
-    Rows = WACC, Columns = Revenue Growth
-    """
-    rows = []
-    for wacc in wacc_range:
-        row = {"WACC": f"{wacc*100:.1f}%"}
-        for g in growth_range:
-            result = dcf_valuation(
-                revenue_base,
-                [g] * years,
-                ebitda_margin_target,
-                capex_pct_revenue,
-                tax_rate,
-                nwc_change_pct,
-                wacc,
-                terminal_growth_rate,
-                net_debt,
-                shares_outstanding,
-                da_pct_revenue,
-            )
-            row[f"{g*100:.0f}% Rev Growth"] = round(result["price_per_share"] or 0, 2)
-        rows.append(row)
-
-    df = pd.DataFrame(rows).set_index("WACC")
-    return df
-
-
-def bull_base_bear_dcf(
-    revenue_base: float,
-    ebitda_margin_base: float,
-    wacc: float,
-    net_debt: float,
-    shares_outstanding: float,
-) -> dict:
-    """
-    Three-scenario DCF (Bull / Base / Bear).
-    Returns implied share price per scenario.
-    """
-    scenarios = {
-        "Bull": {
-            "growth_rates":        [0.15, 0.14, 0.13, 0.12, 0.11, 0.10, 0.09],
-            "ebitda_margin":       ebitda_margin_base * 1.15,
-            "terminal_growth":     0.03,
-            "capex_pct":           0.04,
-            "label":               "Bull Case",
-            "description":         "Strong execution, market share gains, margin expansion",
-            "color":               "#06d6a0",
-        },
-        "Base": {
-            "growth_rates":        [0.08, 0.08, 0.07, 0.07, 0.06, 0.06, 0.05],
-            "ebitda_margin":       ebitda_margin_base,
-            "terminal_growth":     0.025,
-            "capex_pct":           0.05,
-            "label":               "Base Case",
-            "description":         "Consensus growth, stable margins, no major surprises",
-            "color":               "#ffd60a",
-        },
-        "Bear": {
-            "growth_rates":        [0.03, 0.03, 0.02, 0.02, 0.01, 0.01, 0.01],
-            "ebitda_margin":       ebitda_margin_base * 0.85,
-            "terminal_growth":     0.015,
-            "capex_pct":           0.06,
-            "label":               "Bear Case",
-            "description":         "Margin pressure, slower growth, macro headwinds",
-            "color":               "#ef233c",
-        },
-    }
-
-    results = {}
-    for key, s in scenarios.items():
-        r = dcf_valuation(
-            revenue_base,
-            s["growth_rates"],
-            s["ebitda_margin"],
-            s["capex_pct"],
-            0.265,
-            0.01,
-            wacc,
-            s["terminal_growth"],
-            net_debt,
-            shares_outstanding,
-        )
-        results[key] = {
-            **s,
-            "price_per_share": r["price_per_share"],
-            "enterprise_value": r["enterprise_value"],
-            "tv_pct": r["tv_pct_of_ev"],
-        }
-
-    return results
-
-
-def compute_valuation_percentile(current_multiple: float, historical_multiples: list) -> Optional[float]:
-    """
-    Where does the current multiple sit in its historical distribution?
-    Returns percentile (0-100). Higher = more expensive.
-    """
-    if not historical_multiples or current_multiple is None:
-        return None
-    arr = np.array([m for m in historical_multiples if m is not None and not np.isnan(m)])
-    if len(arr) == 0:
-        return None
-    return float(np.percentile(arr <= current_multiple, 100))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ValuationEngine — compatibility class wrapper for valuation_center.py
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ValuationEngine — standalone FCF-based DCF for valuation_center.py
-# Uses a simpler FCF-growth model independent of the revenue-based functions.
-# ─────────────────────────────────────────────────────────────────────────────
-class ValuationEngine:
-    """
-    FCF-based DCF engine used by the Valuation Center page.
-    Accepts trailing FCF, growth rates, and WACC directly.
-    """
-
-    @staticmethod
-    def _safe(v, default=0.0):
-        if v is None: return default
-        try:
-            f = float(v)
-            return default if (f != f or abs(f) == float('inf')) else f
-        except (TypeError, ValueError):
-            return default
-
-    def dcf_model(self, base_fcf: float, growth_phase1: float, growth_phase2: float,
-                  fcf_margin: float, terminal_growth: float, wacc: float,
-                  projection_years: int, net_debt: float,
-                  shares_outstanding: float) -> dict:
-        """
-        Simple FCF-compounding DCF.
-        Splits projection period ~60/40 between phase1 and phase2 growth rates.
-        """
-        base_fcf = self._safe(base_fcf, 1e6)
-        if base_fcf <= 0:
-            base_fcf = 1e6  # fallback so model runs
-        growth_phase1    = self._safe(growth_phase1, 0.08)
-        growth_phase2    = self._safe(growth_phase2, 0.04)
-        terminal_growth  = self._safe(terminal_growth, 0.025)
-        wacc             = max(self._safe(wacc, 0.09), 0.04)
-        projection_years = max(int(projection_years), 3)
-        net_debt         = self._safe(net_debt, 0)
-        shares           = max(self._safe(shares_outstanding, 1e6), 1)
-
-        phase1_years = max(1, round(projection_years * 0.6))
-        phase2_years = projection_years - phase1_years
-
-        pv_fcfs = []
-        projections = []
-        fcf = base_fcf
-        for yr in range(1, projection_years + 1):
-            g = growth_phase1 if yr <= phase1_years else growth_phase2
-            fcf = fcf * (1 + g)
-            disc = fcf / (1 + wacc) ** yr
-            pv_fcfs.append(disc)
-            projections.append({
-                "year": yr,
-                "growth_rate": g,
-                "fcf_m": round(fcf / 1e6, 2),
-                "pv_fcf_m": round(disc / 1e6, 2),
-            })
-
-        # Terminal value (Gordon Growth)
-        terminal_fcf = fcf * (1 + terminal_growth)
-        tv = terminal_fcf / max(wacc - terminal_growth, 0.001)
-        pv_tv = tv / (1 + wacc) ** projection_years
-
-        enterprise_value = sum(pv_fcfs) + pv_tv
-        equity_value = enterprise_value - net_debt
-        intrinsic_per_share = equity_value / shares
-
+    base_fcf = safe_float(base_fcf, 0)
+    if base_fcf <= 0:
         return {
-            "intrinsic_value_per_share": max(intrinsic_per_share, 0),
-            "equity_value": equity_value,
-            "enterprise_value": enterprise_value,
-            "pv_fcfs": pv_fcfs,
-            "pv_terminal_value": pv_tv,
-            "terminal_value": tv,
-            "projections": projections,
+            "intrinsic_value_per_share": 0.0,
+            "enterprise_value": 0.0,
+            "equity_value": 0.0,
+            "pv_fcfs": 0.0,
+            "pv_terminal_value": 0.0,
+            "terminal_value": 0.0,
+            "projections": [],
             "wacc": wacc,
             "terminal_growth": terminal_growth,
+            "error": "Negative or zero base FCF",
         }
 
-    def reverse_dcf(self, current_price: float, base_fcf: float, fcf_margin: float,
-                    wacc: float, terminal_growth: float, projection_years: int,
-                    net_debt: float, shares_outstanding: float) -> dict:
-        """Binary-search for the FCF growth rate that justifies the current price."""
-        current_price = self._safe(current_price, 1)
-        if current_price <= 0:
-            return {"implied_growth_rate": 0.0, "confidence": "Low"}
+    g1     = safe_float(growth_phase1, 0.08)
+    g2     = safe_float(growth_phase2, 0.04)
+    tg     = safe_float(terminal_growth, 0.025)
+    wacc   = max(safe_float(wacc, 0.09), 0.04)
+    proj_y = max(int(safe_float(projection_years, 10)), 3)
+    nd     = safe_float(net_debt, 0)
+    shares = max(safe_float(shares_outstanding, 1.0), 1.0)
 
-        lo, hi = -0.10, 0.60
-        for _ in range(60):
-            mid = (lo + hi) / 2
-            result = self.dcf_model(
-                base_fcf=base_fcf, growth_phase1=mid,
-                growth_phase2=max(mid * 0.6, 0.01),
-                fcf_margin=fcf_margin, terminal_growth=terminal_growth,
-                wacc=wacc, projection_years=projection_years,
-                net_debt=net_debt, shares_outstanding=shares_outstanding
+    # Ensure tg < wacc (avoid divide-by-zero)
+    tg = min(tg, wacc - 0.01)
+
+    phase1_y = max(1, round(proj_y * 0.6))
+
+    pv_fcfs = []
+    projections = []
+    fcf = base_fcf
+
+    for yr in range(1, proj_y + 1):
+        g = g1 if yr <= phase1_y else g2
+        fcf = fcf * (1 + g)
+        pv  = fcf / (1 + wacc) ** yr
+        pv_fcfs.append(pv)
+        projections.append({
+            "year":     yr,
+            "growth":   g,
+            "fcf":      fcf,
+            "pv_fcf":   pv,
+        })
+
+    terminal_fcf = fcf * (1 + tg)
+    tv = terminal_fcf / max(wacc - tg, 0.005)
+    pv_tv = tv / (1 + wacc) ** proj_y
+
+    pv_fcfs_sum = sum(pv_fcfs)
+    ev = pv_fcfs_sum + pv_tv
+    equity_val = ev - nd
+    iv_per_share = max(equity_val / shares, 0)
+
+    return {
+        "intrinsic_value_per_share": iv_per_share,
+        "equity_value":      equity_val,
+        "enterprise_value":  ev,
+        "pv_fcfs":           pv_fcfs_sum,
+        "pv_terminal_value": pv_tv,
+        "terminal_value":    tv,
+        "projections":       projections,
+        "wacc":              wacc,
+        "terminal_growth":   tg,
+    }
+
+
+def reverse_dcf_fcf(current_price: float,
+                    base_fcf: float,
+                    wacc: float = 0.09,
+                    terminal_growth: float = 0.025,
+                    projection_years: int = 10,
+                    net_debt: float = 0.0,
+                    shares_outstanding: float = 1.0) -> dict:
+    """
+    Solve (binary search) for the FCF growth rate that makes intrinsic value equal current price.
+    """
+    current_price = safe_float(current_price, 0)
+    if current_price <= 0:
+        return {
+            "implied_growth_rate": 0.0,
+            "implied_annual_growth_pct": 0.0,
+            "assessment": "Price unavailable",
+            "confidence": "Low",
+        }
+
+    lo, hi = -0.10, 0.50
+    last_iv = None
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        result = dcf_fcf(
+            base_fcf=base_fcf,
+            growth_phase1=mid,
+            growth_phase2=max(mid * 0.6, 0.02),
+            terminal_growth=terminal_growth,
+            wacc=wacc,
+            projection_years=projection_years,
+            net_debt=net_debt,
+            shares_outstanding=shares_outstanding,
+        )
+        iv = result.get("intrinsic_value_per_share", 0)
+        last_iv = iv
+        if abs(iv - current_price) < 0.05:
+            break
+        if iv < current_price:
+            lo = mid
+        else:
+            hi = mid
+
+    implied = (lo + hi) / 2
+
+    if implied > 0.25:
+        assessment = "Very demanding — only justified by exceptional moat"
+    elif implied > 0.15:
+        assessment = "Demanding — requires sustained strong growth"
+    elif implied > 0.08:
+        assessment = "Moderate — achievable for quality compounders"
+    elif implied > 0.02:
+        assessment = "Conservative — limited growth required"
+    else:
+        assessment = "Very conservative or pricing in decline"
+
+    return {
+        "implied_growth_rate":       implied,
+        "implied_annual_growth_pct": implied * 100,
+        "assessment":                assessment,
+        "confidence":                "Medium" if last_iv and abs(last_iv - current_price) < 1.0 else "Low",
+    }
+
+
+def sensitivity_table(base_fcf: float,
+                      wacc_range: list = None,
+                      growth_range: list = None,
+                      terminal_growth: float = 0.025,
+                      projection_years: int = 10,
+                      net_debt: float = 0.0,
+                      shares_outstanding: float = 1.0) -> pd.DataFrame:
+    """
+    DCF sensitivity grid: rows = growth, cols = WACC, cells = $/share.
+    """
+    if wacc_range is None:
+        wacc_range = [0.07, 0.08, 0.09, 0.10, 0.11, 0.12]
+    if growth_range is None:
+        growth_range = [0.0, 0.05, 0.08, 0.10, 0.12, 0.15, 0.20]
+
+    grid = []
+    for g in growth_range:
+        row = []
+        for w in wacc_range:
+            result = dcf_fcf(
+                base_fcf=base_fcf,
+                growth_phase1=g,
+                growth_phase2=max(g * 0.6, 0.02),
+                terminal_growth=terminal_growth,
+                wacc=w,
+                projection_years=projection_years,
+                net_debt=net_debt,
+                shares_outstanding=shares_outstanding,
             )
-            iv = result.get("intrinsic_value_per_share", 0)
-            if abs(iv - current_price) < 0.01:
-                break
-            if iv < current_price:
-                lo = mid
-            else:
-                hi = mid
+            row.append(result.get("intrinsic_value_per_share", 0))
+        grid.append(row)
 
-        implied = (lo + hi) / 2
-        confidence = "High" if abs(implied - 0.35) < 0.25 else "Low"
-        return {"implied_growth_rate": implied, "confidence": confidence}
+    return pd.DataFrame(
+        grid,
+        index=[f"{g*100:.0f}% growth" for g in growth_range],
+        columns=[f"{w*100:.1f}% WACC" for w in wacc_range],
+    )
+
+
+def scenario_dcf(base_fcf: float,
+                 wacc: float = 0.09,
+                 terminal_growth: float = 0.025,
+                 projection_years: int = 10,
+                 net_debt: float = 0.0,
+                 shares_outstanding: float = 1.0,
+                 base_growth: float = 0.08) -> dict:
+    """
+    Bull / Base / Bear scenarios. Returns dict keyed by case name with:
+    {price_per_share, growth, wacc, terminal_growth, label, description, color}
+    """
+    base_growth = safe_float(base_growth, 0.08)
+
+    cases = {
+        "Bear": {
+            "growth":           max(base_growth - 0.06, -0.02),
+            "wacc":             wacc + 0.015,
+            "terminal_growth":  max(terminal_growth - 0.005, 0.01),
+            "label":            "Bear Case",
+            "description":      "Lower growth, higher WACC, weaker terminal",
+            "color":            "#EF4444",
+        },
+        "Base": {
+            "growth":           base_growth,
+            "wacc":             wacc,
+            "terminal_growth":  terminal_growth,
+            "label":            "Base Case",
+            "description":      "Current market expectations",
+            "color":            "#FFB81C",
+        },
+        "Bull": {
+            "growth":           base_growth + 0.05,
+            "wacc":             max(wacc - 0.01, 0.06),
+            "terminal_growth":  min(terminal_growth + 0.005, 0.04),
+            "label":            "Bull Case",
+            "description":      "Faster growth, slightly cheaper capital",
+            "color":            "#22C55E",
+        },
+    }
+
+    out = {}
+    for name, params in cases.items():
+        result = dcf_fcf(
+            base_fcf=base_fcf,
+            growth_phase1=params["growth"],
+            growth_phase2=max(params["growth"] * 0.6, 0.02),
+            terminal_growth=params["terminal_growth"],
+            wacc=params["wacc"],
+            projection_years=projection_years,
+            net_debt=net_debt,
+            shares_outstanding=shares_outstanding,
+        )
+        out[name] = {
+            "price_per_share":      result.get("intrinsic_value_per_share", 0),
+            "intrinsic_value":      result.get("intrinsic_value_per_share", 0),
+            "growth":               params["growth"],
+            "wacc":                 params["wacc"],
+            "terminal_growth":      params["terminal_growth"],
+            "label":                params["label"],
+            "description":          params["description"],
+            "color":                params["color"],
+        }
+    return out

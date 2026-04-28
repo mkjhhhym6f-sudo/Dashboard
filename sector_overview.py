@@ -1,151 +1,164 @@
-"""
-Page 2 — Sector Overview
-Dynamic sector analysis with peer comparison within the sector.
-"""
-
+"""sector_overview.py — Page 2: Sector deep dive."""
 import streamlit as st
 import pandas as pd
 import numpy as np
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from data_providers.market_data import fetch_fundamentals, fetch_price_history, calculate_returns, calculate_risk_metrics
-from analytics.scoring import compute_composite_score, get_score_color
-from utils.charts import heatmap, sector_allocation_pie, SECTOR_COLORS, COLORS, _apply_theme
-import plotly.graph_objects as go
-
-UNIVERSE_CSV = Path(__file__).parent.parent.parent / "config" / "universe.csv"
-SECTOR_CFG   = Path(__file__).parent.parent.parent / "config" / "sector_config.yaml"
-
-
-def _pct_raw(v):
-    if v is None or (isinstance(v, float) and np.isnan(v)): return "N/A"
-    return f"{v*100:.1f}%"
-
-
-def _fmt(v, fmt="{:.1f}", sfx=""):
-    if v is None or (isinstance(v, float) and np.isnan(v)): return "N/A"
-    try: return f"{fmt.format(v)}{sfx}"
-    except: return "N/A"
+from theme import (render_hero, render_section, UDES_GOLD, POSITIVE, NEGATIVE,
+                    TEXT_PRIMARY, TEXT_MUTED, BG_CARD,
+                    color_for_value, color_for_score)
+from market_data import load_universe, fetch_portfolio_snapshot
+from scoring import compute_composite_score
+from charts import heatmap
+from formatting import fmt_pct, is_valid
 
 
 def render():
-    st.markdown("""
-    <div class="main-header">
-        <h1 style="margin:0; font-size:1.6rem; color:#f8fafc;">📂 Sector Overview</h1>
-        <p style="margin:0.25rem 0 0 0; color:#94a3b8; font-size:0.9rem;">
-            Deep dive into a specific sector — performance, fundamentals, and ranking
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    render_hero("Sector Overview",
+                 "Deep dive into a sector — fundamentals, performance, ranking",
+                 "📂")
 
-    universe = pd.read_csv(UNIVERSE_CSV)
-    companies = universe[universe["is_etf"] == False]
-    sectors = sorted(companies["sector"].unique().tolist())
-
-    selected_sector = st.selectbox("Select Sector", options=sectors)
-    sector_tickers  = companies[companies["sector"] == selected_sector]["ticker"].tolist()
-
-    if not sector_tickers:
-        st.warning("No tickers found for this sector.")
+    universe = load_universe()
+    if universe.empty:
+        st.error("Could not load universe.csv")
         return
 
-    st.markdown(f"**{len(sector_tickers)} companies covered** in {selected_sector}")
+    companies = universe[~universe["is_etf"]].copy()
+    sectors = sorted(companies["sector"].dropna().unique().tolist())
 
-    with st.spinner("Loading sector data..."):
-        rows = []
-        for ticker in sector_tickers:
-            fd = fetch_fundamentals(ticker)
-            prices_df = fetch_price_history(ticker, period="1y")
-            prices    = prices_df["Close"] if not prices_df.empty else pd.Series(dtype=float)
-            rets      = calculate_returns(prices) if not prices.empty else {}
-            risk_m    = calculate_risk_metrics(prices) if not prices.empty else {}
-            score_r   = compute_composite_score(fd, rets, selected_sector, "Neutral", False)
-            meta      = universe[universe["ticker"] == ticker].iloc[0].to_dict()
+    if not sectors:
+        st.warning("No sectors found.")
+        return
 
-            net_d = fd.get("net_debt", 0) or 0
-            ebit  = fd.get("ebitda", 1) or 1
-
-            rows.append({
-                "Ticker":    ticker,
-                "Name":      fd.get("name") or meta.get("name", ticker),
-                "1D":        rets.get("1d"),
-                "1M":        rets.get("1m"),
-                "3M":        rets.get("3m"),
-                "YTD":       rets.get("ytd"),
-                "1Y":        rets.get("1y"),
-                "Mkt Cap":   fd.get("market_cap"),
-                "Rev Growth":fd.get("revenue_growth_yoy"),
-                "EBITDA Mgn":fd.get("ebitda_margin"),
-                "Op Margin": fd.get("operating_margin"),
-                "Gross Mgn": fd.get("gross_margin"),
-                "ROIC/ROE":  fd.get("roic") or fd.get("roe"),
-                "EV/EBITDA": fd.get("ev_ebitda"),
-                "P/E":       fd.get("pe_trailing") or fd.get("pe_forward"),
-                "FCF Yield": (fd.get("fcf") / fd.get("market_cap")) * 100 if fd.get("fcf") and fd.get("market_cap") else None,
-                "ND/EBITDA": net_d / ebit if ebit and ebit != 1 else None,
-                "Div Yield": fd.get("dividend_yield"),
-                "Beta":      fd.get("beta") or risk_m.get("beta_calc"),
-                "Volatility":risk_m.get("volatility_ann"),
-                "Score":     score_r.get("total"),
-                "Rec":       score_r.get("recommendation", "N/A"),
-            })
-
-    df = pd.DataFrame(rows)
-
-    # ── Sector KPIs ──────────────────────────────────────────────────────
-    st.markdown('<div class="section-header">Sector Averages</div>', unsafe_allow_html=True)
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-
-    avg = lambda col: df[col].mean() if df[col].notna().any() else None
-
-    c1.metric("Avg Score",      f"{avg('Score'):.0f}/100" if avg("Score") else "N/A")
-    c2.metric("Avg Rev Growth", _pct_raw(avg("Rev Growth")))
-    c3.metric("Avg EBITDA Mgn", _pct_raw(avg("EBITDA Mgn")))
-    c4.metric("Avg EV/EBITDA",  _fmt(avg("EV/EBITDA"), "{:.1f}", "x"))
-    c5.metric("Avg ND/EBITDA",  _fmt(avg("ND/EBITDA"), "{:.1f}", "x"))
-    c6.metric("Avg YTD Ret",    _pct_raw(avg("YTD")))
-
-    # ── Performance heatmap ───────────────────────────────────────────────
-    st.markdown('<div class="section-header">Performance Comparison</div>', unsafe_allow_html=True)
-    hm_cols = ["1D", "1M", "3M", "YTD", "1Y"]
-    hm_df   = df[["Ticker"] + hm_cols].set_index("Ticker")
-    hm_pct  = hm_df.applymap(lambda v: v * 100 if v is not None else np.nan)
-    fig_hm  = heatmap(hm_pct, f"{selected_sector} — Return Heatmap (%)", fmt="+.1f", zmin=-25, zmax=25)
-    st.plotly_chart(fig_hm, use_container_width=True)
-
-    # ── Fundamentals table ───────────────────────────────────────────────
-    st.markdown('<div class="section-header">Fundamentals Snapshot</div>', unsafe_allow_html=True)
-
-    display_cols = ["Ticker", "Name", "Rev Growth", "EBITDA Mgn", "ROIC/ROE", "EV/EBITDA", "P/E", "FCF Yield", "ND/EBITDA", "Score", "Rec"]
-    df_disp = df[display_cols].copy()
-
-    for col in ["Rev Growth", "EBITDA Mgn", "ROIC/ROE"]:
-        df_disp[col] = df_disp[col].apply(_pct_raw)
-    for col in ["EV/EBITDA", "P/E", "ND/EBITDA"]:
-        df_disp[col] = df_disp[col].apply(lambda v: _fmt(v, "{:.1f}", "x"))
-    df_disp["FCF Yield"] = df_disp["FCF Yield"].apply(lambda v: _fmt(v, "{:.1f}", "%"))
-    df_disp["Score"]     = df_disp["Score"].apply(lambda v: f"{v:.0f}" if v and not np.isnan(v) else "N/A")
-
-    st.dataframe(df_disp, use_container_width=True, hide_index=True)
-
-    # ── Top / Bottom performers ──────────────────────────────────────────
-    c1, c2 = st.columns(2)
+    c1, c2 = st.columns([3, 1])
     with c1:
-        st.markdown("**🏆 Top Performers (YTD)**")
-        top = df.sort_values("YTD", ascending=False).head(5)
-        for _, row in top.iterrows():
-            v = row["YTD"]
-            color = "#06d6a0" if v and v > 0 else "#ef233c"
-            pct   = f"{v*100:+.1f}%" if v else "N/A"
-            st.markdown(f"<div style='display:flex; justify-content:space-between; padding:0.25rem 0;'><span style='color:#cbd5e1;'>{row['Ticker']}</span><span style='color:{color}; font-weight:600;'>{pct}</span></div>", unsafe_allow_html=True)
+        selected_sector = st.selectbox("Select Sector", options=sectors)
     with c2:
-        st.markdown("**📉 Worst Performers (YTD)**")
-        bot = df.sort_values("YTD", ascending=True).head(5)
-        for _, row in bot.iterrows():
-            v = row["YTD"]
-            color = "#06d6a0" if v and v > 0 else "#ef233c"
-            pct   = f"{v*100:+.1f}%" if v else "N/A"
-            st.markdown(f"<div style='display:flex; justify-content:space-between; padding:0.25rem 0;'><span style='color:#cbd5e1;'>{row['Ticker']}</span><span style='color:{color}; font-weight:600;'>{pct}</span></div>", unsafe_allow_html=True)
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+
+    sector_tickers = companies[companies["sector"] == selected_sector]["ticker"].tolist()
+    st.caption(f"**{len(sector_tickers)} companies** covered in {selected_sector}")
+
+    if not sector_tickers:
+        st.info(f"No companies in {selected_sector}.")
+        return
+
+    with st.spinner(f"Loading {selected_sector}..."):
+        snap = fetch_portfolio_snapshot(sector_tickers, period="1y")
+
+    if snap.empty:
+        st.warning("No data available.")
+        return
+
+    scores, recs = [], []
+    for _, row in snap.iterrows():
+        fund = row.get("fundamentals", {}) or {}
+        rets = {"1d": row.get("ret_1d"), "1m": row.get("ret_1m"),
+                "3m": row.get("ret_3m"), "6m": row.get("ret_6m"),
+                "1y": row.get("ret_1y"), "ytd": row.get("ret_ytd")}
+        result = compute_composite_score(fund, rets, selected_sector,
+                                          regime="Neutral", is_etf=False)
+        scores.append(result["total"])
+        recs.append(result["recommendation"])
+    snap["score"] = scores
+    snap["rec"] = recs
+
+    render_section("Sector Averages")
+
+    def avg_metric(rows, fund_key):
+        vals = [r.get("fundamentals", {}).get(fund_key) for _, r in rows.iterrows()]
+        valid = [v for v in vals if is_valid(v)]
+        return np.nanmean(valid) if valid else None
+
+    valid_scores = [s for s in scores if is_valid(s)]
+    avg_score = np.nanmean(valid_scores) if valid_scores else None
+    ev_avg = avg_metric(snap, "ev_ebitda")
+    pe_avg = avg_metric(snap, "pe_trailing")
+
+    kpi_specs = [
+        ("Avg Score", f"{avg_score:.0f}/100" if avg_score is not None else "N/A",
+         color_for_score(avg_score)),
+        ("Avg YTD", fmt_pct(snap["ret_ytd"].mean(), signed=True),
+         color_for_value(snap["ret_ytd"].mean())),
+        ("Avg Rev Growth", fmt_pct(avg_metric(snap, "revenue_growth_yoy"), signed=True), TEXT_PRIMARY),
+        ("Avg EBITDA Mgn", fmt_pct(avg_metric(snap, "ebitda_margin")), TEXT_PRIMARY),
+        ("Avg EV/EBITDA", f"{ev_avg:.1f}x" if is_valid(ev_avg) else "N/A", TEXT_PRIMARY),
+        ("Avg P/E", f"{pe_avg:.1f}x" if is_valid(pe_avg) else "N/A", TEXT_PRIMARY),
+    ]
+
+    cols = st.columns(len(kpi_specs))
+    for col, (label, val, color) in zip(cols, kpi_specs):
+        col.markdown(f"""
+        <div style="background:{BG_CARD};border:1px solid #1F3A2E;border-radius:10px;padding:14px 16px">
+            <div style="color:{TEXT_MUTED};font-size:11px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase">{label}</div>
+            <div style="color:{color};font-size:22px;font-weight:700;margin-top:4px">{val}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    render_section("Performance Comparison")
+
+    hm_cols = ["ret_1d", "ret_1m", "ret_3m", "ret_6m", "ret_ytd", "ret_1y"]
+    label_map = {"ret_1d": "1D", "ret_1m": "1M", "ret_3m": "3M",
+                 "ret_6m": "6M", "ret_ytd": "YTD", "ret_1y": "1Y"}
+    hm_df = snap[["ticker"] + hm_cols].set_index("ticker")
+    hm_df.columns = [label_map[c] for c in hm_df.columns]
+    hm_pct = hm_df.applymap(lambda v: v * 100 if is_valid(v) else np.nan)
+    st.plotly_chart(heatmap(hm_pct, f"{selected_sector} — Return Heatmap (%)",
+                             zmin=-25, zmax=25, fmt="+.1f"),
+                     use_container_width=True)
+
+    render_section("Fundamentals Snapshot")
+
+    rows_data = []
+    for _, row in snap.iterrows():
+        fund = row.get("fundamentals", {}) or {}
+        rev_g = fund.get("revenue_growth_yoy")
+        ebm = fund.get("ebitda_margin")
+        roe = fund.get("roe")
+        ev_e = fund.get("ev_ebitda")
+        pe = fund.get("pe_trailing") or fund.get("pe_forward")
+        fcf = fund.get("fcf")
+        mc = fund.get("market_cap")
+        fcf_y = (fcf / mc) if (is_valid(fcf) and is_valid(mc) and mc > 0) else None
+
+        rows_data.append({
+            "Ticker": row["ticker"],
+            "Company": (row["name"] or "")[:25],
+            "Rev Growth": fmt_pct(rev_g, signed=True),
+            "EBITDA Mgn": fmt_pct(ebm),
+            "ROE": fmt_pct(roe),
+            "EV/EBITDA": f"{ev_e:.1f}x" if is_valid(ev_e) and ev_e > 0 else "N/A",
+            "P/E": f"{pe:.1f}x" if is_valid(pe) and pe > 0 else "N/A",
+            "FCF Yield": fmt_pct(fcf_y),
+            "YTD": fmt_pct(row.get("ret_ytd"), signed=True),
+            "Score": f"{row['score']:.0f}" if is_valid(row.get("score")) else "N/A",
+            "Rec": row.get("rec", "N/A"),
+        })
+
+    st.dataframe(pd.DataFrame(rows_data), use_container_width=True, hide_index=True)
+
+    c1, c2 = st.columns(2)
+
+    def render_perf_card(rows, title):
+        st.markdown(f"**{title}**")
+        for _, r in rows.iterrows():
+            v = r.get("ret_ytd")
+            color = color_for_value(v)
+            pct = fmt_pct(v, signed=True)
+            st.markdown(f"""
+            <div style="display:flex;justify-content:space-between;
+                        padding:8px 12px;background:{BG_CARD};border-radius:6px;
+                        margin-bottom:4px;border-left:3px solid {color}">
+                <div>
+                    <span style="color:{UDES_GOLD};font-weight:600">{r['ticker']}</span>
+                    <span style="color:{TEXT_MUTED};font-size:11px;margin-left:8px">{(r['name'] or '')[:30]}</span>
+                </div>
+                <span style="color:{color};font-weight:600">{pct}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+    with c1:
+        render_perf_card(snap.nlargest(5, "ret_ytd"), "🏆 Top Performers (YTD)")
+    with c2:
+        render_perf_card(snap.nsmallest(5, "ret_ytd"), "📉 Worst Performers (YTD)")

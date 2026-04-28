@@ -1,33 +1,6 @@
-# SIF Analytics — Student Investment Fund Dashboard
-# Python 3.10+
-
-# Core
 streamlit>=1.35.0
 pandas>=2.0.0
 numpy>=1.26.0
 plotly>=5.18.0
-
-# Financial data
 yfinance>=0.2.40
 requests>=2.31.0
-
-# Data formats and caching
-pyarrow>=14.0.0
-fastparquet>=2024.1.0
-
-# Config and environment
-python-dotenv>=1.0.0
-pyyaml>=6.0.1
-
-# Utilities
-scipy>=1.11.0
-
-# Optional — uncomment if using FMP API
-# financialmodelingprep
-
-# Optional — uncomment if using OpenBB
-# openbb>=4.0.0
-
-# Dev/testing (optional)
-# pytest>=7.4.0
-# black>=23.0.0

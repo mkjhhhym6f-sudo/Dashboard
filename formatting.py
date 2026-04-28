@@ -1,97 +1,89 @@
 """
-src/utils/formatting.py
-Formatting helpers for financial values, percentages, multiples.
+formatting.py — Robust formatters for SIF Analytics.
+All return 'N/A' on invalid/missing data — never raise.
 """
 
-def fmt_currency(value, currency='CAD', decimals=2):
-    """Format a number as currency string."""
-    if value is None or value != value:  # NaN check
-        return 'N/A'
+import math
+
+
+def is_valid(v) -> bool:
+    """True if v is a finite real number."""
+    if v is None:
+        return False
     try:
-        v = float(value)
-        symbol = '$' if currency in ('CAD', 'USD') else '€' if currency == 'EUR' else '$'
-        if abs(v) >= 1e9:
-            return f"{symbol}{v/1e9:.{decimals}f}B"
-        elif abs(v) >= 1e6:
-            return f"{symbol}{v/1e6:.{decimals}f}M"
-        elif abs(v) >= 1e3:
-            return f"{symbol}{v/1e3:.{decimals}f}K"
-        return f"{symbol}{v:.{decimals}f}"
+        f = float(v)
+        return not (math.isnan(f) or math.isinf(f))
     except (TypeError, ValueError):
-        return 'N/A'
+        return False
 
 
-def fmt_pct(value, decimals=1, signed=False):
-    """Format a decimal as percentage string."""
-    if value is None:
-        return 'N/A'
-    try:
-        v = float(value)
-        if v != v:
-            return 'N/A'
-        prefix = '+' if signed and v > 0 else ''
-        return f"{prefix}{v * 100:.{decimals}f}%"
-    except (TypeError, ValueError):
-        return 'N/A'
+def safe_float(v, default: float = 0.0) -> float:
+    if not is_valid(v):
+        return default
+    return float(v)
 
 
-def fmt_multiple(value, decimals=1, suffix='x'):
-    """Format a number as a financial multiple."""
-    if value is None:
-        return 'N/A'
-    try:
-        v = float(value)
-        if v != v or v <= 0:
-            return 'N/A'
-        return f"{v:.{decimals}f}{suffix}"
-    except (TypeError, ValueError):
-        return 'N/A'
+def fmt_currency(value, currency: str = "CAD", decimals: int = 2, na: str = "N/A") -> str:
+    if not is_valid(value):
+        return na
+    v = float(value)
+    if abs(v) >= 1e12:
+        return f"${v/1e12:.{decimals}f}T"
+    if abs(v) >= 1e9:
+        return f"${v/1e9:.{decimals}f}B"
+    if abs(v) >= 1e6:
+        return f"${v/1e6:.{decimals}f}M"
+    if abs(v) >= 1e3:
+        return f"${v/1e3:,.{decimals}f}K"
+    return f"${v:.{decimals}f}"
 
 
-def fmt_number(value, decimals=1, suffix=''):
-    """Format a generic number."""
-    if value is None:
-        return 'N/A'
-    try:
-        v = float(value)
-        if v != v:
-            return 'N/A'
-        return f"{v:,.{decimals}f}{suffix}"
-    except (TypeError, ValueError):
-        return 'N/A'
+def fmt_price(value, na: str = "N/A") -> str:
+    if not is_valid(value):
+        return na
+    return f"${float(value):.2f}"
 
 
-def fmt_large(value, currency='CAD'):
-    """Format large financial values with B/M suffix."""
-    if value is None:
-        return 'N/A'
-    try:
-        v = float(value)
-        if v != v:
-            return 'N/A'
-        symbol = '$'
-        if abs(v) >= 1e12:
-            return f"{symbol}{v/1e12:.2f}T"
-        elif abs(v) >= 1e9:
-            return f"{symbol}{v/1e9:.2f}B"
-        elif abs(v) >= 1e6:
-            return f"{symbol}{v/1e6:.1f}M"
-        elif abs(v) >= 1e3:
-            return f"{symbol}{v/1e3:.0f}K"
-        return f"{symbol}{v:.2f}"
-    except (TypeError, ValueError):
-        return 'N/A'
+def fmt_pct(value, decimals: int = 1, signed: bool = False, na: str = "N/A") -> str:
+    """Format decimal as percentage. 0.15 → '15.0%'"""
+    if not is_valid(value):
+        return na
+    v = float(value)
+    sign = "+" if signed and v > 0 else ""
+    return f"{sign}{v * 100:.{decimals}f}%"
 
 
-def color_return(value: float) -> str:
-    """Return CSS color string for a return value."""
-    if value is None or value != value:
-        return '#888888'
-    return '#00d4aa' if value > 0 else '#ff4b4b' if value < 0 else '#888888'
+def fmt_pct_raw(value, decimals: int = 1, signed: bool = False, na: str = "N/A") -> str:
+    """Format value already in %. 15 → '15.0%'"""
+    if not is_valid(value):
+        return na
+    v = float(value)
+    sign = "+" if signed and v > 0 else ""
+    return f"{sign}{v:.{decimals}f}%"
 
 
-def format_delta_pct(value: float) -> str:
-    """Format return as +/- percentage."""
-    if value is None or value != value:
-        return 'N/A'
-    return f"{value:+.2%}"
+def fmt_multiple(value, decimals: int = 1, suffix: str = "x", na: str = "N/A") -> str:
+    if not is_valid(value):
+        return na
+    v = float(value)
+    if v <= 0:
+        return na
+    return f"{v:.{decimals}f}{suffix}"
+
+
+def fmt_number(value, decimals: int = 1, suffix: str = "", na: str = "N/A") -> str:
+    if not is_valid(value):
+        return na
+    return f"{float(value):,.{decimals}f}{suffix}"
+
+
+def fmt_large(value, decimals: int = 1, na: str = "N/A") -> str:
+    """Alias for fmt_currency with smart magnitude (B/M/K)."""
+    return fmt_currency(value, decimals=decimals, na=na)
+
+
+def fmt_delta(value, decimals: int = 2, na: str = "N/A") -> str:
+    """Format a return as +X.XX%/-X.XX%. Decimal input (0.05 → +5.00%)."""
+    if not is_valid(value):
+        return na
+    return f"{float(value)*100:+.{decimals}f}%"
