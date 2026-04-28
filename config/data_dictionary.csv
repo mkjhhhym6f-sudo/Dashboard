@@ -1,0 +1,79 @@
+file,column,description,type,unit,source,required,notes
+universe.csv,ciq_symbol,Capital IQ unique company identifier,string,—,Capital IQ,YES,Format: TSX:DOL or IQ####. Used as primary join key across all files.
+universe.csv,yahoo_symbol,Yahoo Finance ticker symbol for yfinance API calls,string,—,Manual/FIEUS,YES,"TSX stocks: add .TO suffix (e.g. DOL.TO). NYSE/NASDAQ: no suffix (e.g. LULU). Special: QBR-B.TO not QBR.B.TO."
+universe.csv,company,Full legal company name,string,—,Manual/FIEUS,YES,
+universe.csv,sector,GICS sector classification,string,—,Manual/FIEUS,YES,"e.g. Technology, Financials, Industrials"
+universe.csv,industry,GICS industry or sub-sector,string,—,Manual/FIEUS,NO,More granular than sector
+universe.csv,country,Country of incorporation,string,—,Manual/FIEUS,YES,e.g. Canada / United States
+universe.csv,currency,Reporting currency,string,—,Manual/FIEUS,YES,CAD or USD
+universe.csv,is_etf,Whether the ticker is an ETF benchmark,boolean,—,Manual/FIEUS,YES,TRUE or FALSE. ETFs are excluded from scoring.
+universe.csv,benchmark_role,Description of benchmark role if ETF,string,—,Manual/FIEUS,NO,e.g. Financials benchmark. Leave blank for equities.
+universe.csv,analyst,FIEUS analyst assigned to this ticker,string,—,Manual/FIEUS,YES,Use FIEUS member name or TBD
+universe.csv,active,Whether ticker is actively covered,boolean,—,Manual/FIEUS,YES,TRUE = active coverage. FALSE = watchlist or dropped.
+universe.csv,notes,Free-form notes about this ticker,string,—,Manual/FIEUS,NO,
+manual_fundamentals.csv,ciq_symbol,Capital IQ identifier — join key,string,—,Capital IQ,YES,Must match universe.csv exactly
+manual_fundamentals.csv,yahoo_symbol,Yahoo Finance ticker — secondary join key,string,—,Manual/FIEUS,YES,
+manual_fundamentals.csv,company,Company name,string,—,Capital IQ,YES,
+manual_fundamentals.csv,fiscal_year,Fiscal year of the reported period,integer,YYYY,Capital IQ / Filing,YES,e.g. 2024
+manual_fundamentals.csv,fiscal_period,Fiscal period type,string,—,Capital IQ / Filing,YES,"FY = full year, Q1/Q2/Q3/Q4 = quarter, LTM = last twelve months"
+manual_fundamentals.csv,revenue,Total revenue,float,CAD or USD (see currency),Capital IQ / Filing,YES,Absolute value in company currency. No rounding.
+manual_fundamentals.csv,gross_profit,Revenue minus cost of goods sold,float,CAD or USD,Capital IQ / Filing,NO,
+manual_fundamentals.csv,ebitda,Earnings before interest tax depreciation amortization,float,CAD or USD,Capital IQ / Filing,YES,Use adjusted EBITDA if available — note in source column
+manual_fundamentals.csv,ebit,Earnings before interest and tax,float,CAD or USD,Capital IQ / Filing,NO,
+manual_fundamentals.csv,net_income,Net income attributable to common shareholders,float,CAD or USD,Capital IQ / Filing,YES,
+manual_fundamentals.csv,free_cash_flow,FCF = Operating cash flow minus capex,float,CAD or USD,Capital IQ / Filing,YES,Critical for DCF — verify definition used
+manual_fundamentals.csv,gross_margin,Gross profit / Revenue,float,decimal (0 to 1),Calculated or Capital IQ,YES,e.g. 0.40 = 40%. Do NOT enter as percentage.
+manual_fundamentals.csv,ebitda_margin,EBITDA / Revenue,float,decimal (0 to 1),Calculated or Capital IQ,YES,
+manual_fundamentals.csv,ebit_margin,EBIT / Revenue,float,decimal (0 to 1),Calculated or Capital IQ,NO,
+manual_fundamentals.csv,net_margin,Net income / Revenue,float,decimal (0 to 1),Calculated or Capital IQ,NO,
+manual_fundamentals.csv,roe,Return on equity = Net income / Avg equity,float,decimal (0 to 1),Capital IQ / Calculated,NO,
+manual_fundamentals.csv,roic,Return on invested capital,float,decimal (0 to 1),Capital IQ / Calculated,NO,
+manual_fundamentals.csv,total_assets,Total assets from balance sheet,float,CAD or USD,Capital IQ / Filing,NO,
+manual_fundamentals.csv,total_debt,Total financial debt (short + long term),float,CAD or USD,Capital IQ / Filing,NO,Exclude operating leases unless IFRS 16 adjusted
+manual_fundamentals.csv,cash,Cash and short-term equivalents,float,CAD or USD,Capital IQ / Filing,NO,
+manual_fundamentals.csv,net_debt,Total debt minus cash,float,CAD or USD,Calculated or Capital IQ,YES,"= total_debt - cash. Can be negative (net cash position)."
+manual_fundamentals.csv,shares_outstanding,Diluted shares outstanding,float,shares (absolute),Capital IQ / Filing,YES,Use diluted count. Used in DCF per-share calculation.
+manual_fundamentals.csv,last_update,Date this row was last updated,date,YYYY-MM-DD,Manual/FIEUS,YES,
+manual_fundamentals.csv,source,Origin of data for this row,string,—,Manual/FIEUS,YES,"e.g. Capital IQ export 2025-04-28, FIEUS manual, yfinance"
+manual_valuation.csv,ciq_symbol,Capital IQ identifier — join key,string,—,Capital IQ,YES,Must match universe.csv exactly
+manual_valuation.csv,yahoo_symbol,Yahoo Finance ticker,string,—,Manual/FIEUS,YES,
+manual_valuation.csv,company,Company name,string,—,Capital IQ,YES,
+manual_valuation.csv,price,Current share price at time of entry,float,CAD or USD,yfinance / Capital IQ / Manual,YES,Snapshot price — not real-time. Indicate date in last_update.
+manual_valuation.csv,market_cap,Market capitalization = price × shares outstanding,float,CAD or USD,Capital IQ / Calculated,YES,
+manual_valuation.csv,enterprise_value,EV = market cap + net debt + minority interest,float,CAD or USD,Capital IQ / Calculated,YES,Verify components: some sources include/exclude leases
+manual_valuation.csv,pe,Trailing 12-month price-to-earnings,float,multiple (x),Capital IQ,NO,Leave blank if company has negative earnings
+manual_valuation.csv,forward_pe,Next 12-month consensus P/E,float,multiple (x),Capital IQ / Consensus,NO,Based on analyst consensus estimates — note source
+manual_valuation.csv,ev_ebitda,Enterprise value / EBITDA,float,multiple (x),Capital IQ / Calculated,YES,Core valuation multiple for most sectors
+manual_valuation.csv,ev_ebit,Enterprise value / EBIT,float,multiple (x),Capital IQ / Calculated,NO,
+manual_valuation.csv,ev_sales,Enterprise value / Revenue,float,multiple (x),Capital IQ / Calculated,NO,
+manual_valuation.csv,price_sales,Market cap / Revenue,float,multiple (x),Capital IQ / Calculated,NO,
+manual_valuation.csv,price_book,Market cap / Book value of equity,float,multiple (x),Capital IQ / Calculated,NO,
+manual_valuation.csv,fcf_yield,Free cash flow / Market cap,float,decimal (0 to 1),Calculated,NO,= FCF / Market cap. e.g. 0.04 = 4%.
+manual_valuation.csv,dividend_yield,Annual dividend / Price,float,decimal (0 to 1),Capital IQ / Manual,NO,
+manual_valuation.csv,net_debt_ebitda,Net debt / EBITDA leverage ratio,float,ratio (x),Capital IQ / Calculated,NO,Key for balance sheet quality scoring
+manual_valuation.csv,last_update,Date this row was last updated,date,YYYY-MM-DD,Manual/FIEUS,YES,
+manual_valuation.csv,source,Origin of data for this row,string,—,Manual/FIEUS,YES,"e.g. Capital IQ export 2025-04-28"
+manual_targets.csv,ciq_symbol,Capital IQ identifier — join key,string,—,Capital IQ,YES,
+manual_targets.csv,company,Company name,string,—,Manual/FIEUS,YES,
+manual_targets.csv,analyst,FIEUS analyst authoring this view,string,—,Manual/FIEUS,YES,First and last name or initials
+manual_targets.csv,recommendation,FIEUS internal recommendation,string,—,FIEUS analyst,YES,"Allowed values: Buy / Hold / Watchlist / Sell / Under Review / No Coverage"
+manual_targets.csv,target_price,12-month FIEUS analyst target price,float,CAD or USD,FIEUS analyst,YES,Analyst judgment — must be verified by investment committee
+manual_targets.csv,upside_downside,Implied return to target vs current price,float,decimal (e.g. 0.15 = 15%),Calculated,NO,= (target_price / price) - 1. Can be negative.
+manual_targets.csv,thesis_status,Current status of the investment thesis,string,—,FIEUS analyst,YES,"Active / Under Review / Thesis Broken / On Hold / À revoir"
+manual_targets.csv,priority,Coverage priority level,string,—,FIEUS analyst,NO,"High / Medium / Low"
+manual_targets.csv,next_earnings,Expected next earnings release,string,—,Manual/FIEUS,NO,"e.g. Q2 2025 or 2025-08-14"
+manual_targets.csv,last_update,Date this analyst view was last updated,date,YYYY-MM-DD,Manual/FIEUS,YES,
+manual_targets.csv,source,Origin of this analyst view,string,—,Manual/FIEUS,YES,Always: FIEUS analyst — never yfinance or FRED
+manual_targets.csv,bull_case,Bull scenario thesis description,string,—,FIEUS analyst,NO,Qualitative. Max 300 characters.
+manual_targets.csv,base_case,Base scenario thesis description,string,—,FIEUS analyst,NO,Qualitative. Max 300 characters.
+manual_targets.csv,bear_case,Bear scenario thesis description,string,—,FIEUS analyst,NO,Qualitative. Max 300 characters.
+manual_targets.csv,key_risks,Key risks to the investment thesis,string,—,FIEUS analyst,NO,Semi-colon separated list recommended
+manual_targets.csv,key_metrics_to_watch,Metrics to track for thesis validation,string,—,FIEUS analyst,NO,Semi-colon separated list recommended
+data_dictionary.csv,file,Name of the CSV file this column belongs to,string,—,FIEUS,YES,
+data_dictionary.csv,column,Column name exactly as it appears in the CSV header,string,—,FIEUS,YES,
+data_dictionary.csv,description,Human-readable description of what the column contains,string,—,FIEUS,YES,
+data_dictionary.csv,type,Data type expected,string,—,FIEUS,YES,"string / integer / float / boolean / date"
+data_dictionary.csv,unit,Unit of measurement,string,—,FIEUS,YES,"e.g. CAD, %, decimal, multiple (x), shares, YYYY-MM-DD"
+data_dictionary.csv,source,Expected data source,string,—,FIEUS,YES,"Capital IQ / yfinance / FIEUS analyst / Calculated / Filing"
+data_dictionary.csv,required,Whether this column is required for the dashboard to function,string,—,FIEUS,YES,YES or NO
+data_dictionary.csv,notes,Additional context or warnings,string,—,FIEUS,NO,

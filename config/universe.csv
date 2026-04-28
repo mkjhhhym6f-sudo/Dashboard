@@ -1,39 +1,40 @@
-ticker,ticker_yf,name,sector,subsector,market,currency,is_etf,analyst,weight_pct
-TSX:DOL,DOL.TO,Dollarama,Consumer Staples,Discount Retail,TSX,CAD,False,TBD,0
-TSX:ONEX,ONEX.TO,Onex Corporation,Financials,Private Equity,TSX,CAD,False,TBD,0
-TSX:SHOP,SHOP.TO,Shopify,Technology,E-Commerce Platform,TSX,CAD,False,TBD,0
-TSX:WSP,WSP.TO,WSP Global,Industrials,Engineering Consulting,TSX,CAD,False,TBD,0
-TSX:XMA,XMA.TO,iShares S&P/TSX Capped Materials ETF,Materials,ETF,TSX,CAD,True,BENCHMARK,0
-TSX:L,L.TO,Loblaw Companies,Consumer Staples,Grocery Retail,TSX,CAD,False,TBD,0
-TSX:NA,NA.TO,National Bank of Canada,Financials,Banking,TSX,CAD,False,TBD,0
-TSX:SJ,SJ.TO,Stella-Jones,Materials,Wood Products,TSX,CAD,False,TBD,0
-TSX:RY,RY.TO,Royal Bank of Canada,Financials,Banking,TSX,CAD,False,TBD,0
-TSX:XFN,XFN.TO,iShares S&P/TSX Capped Financials ETF,Financials,ETF,TSX,CAD,True,BENCHMARK,0
-TSX:SIS,SIS.TO,Savaria Corporation,Healthcare,Accessibility Solutions,TSX,CAD,False,TBD,0
-TSX:QBR.B,QBR-B.TO,Quebecor,Communication Services,Telecom/Media,TSX,CAD,False,TBD,0
-TSX:XIT,XIT.TO,iShares S&P/TSX Capped Info Tech ETF,Technology,ETF,TSX,CAD,True,BENCHMARK,0
-TSX:SLF,SLF.TO,Sun Life Financial,Financials,Insurance,TSX,CAD,False,TBD,0
-TSX:TD,TD.TO,TD Bank,Financials,Banking,TSX,CAD,False,TBD,0
-TSX:BBD.B,BBD-B.TO,Bombardier,Industrials,Aerospace,TSX,CAD,False,TBD,0
-TSX:ATD,ATD.TO,Alimentation Couche-Tard,Consumer Discretionary,Convenience/Fuel Retail,TSX,CAD,False,TBD,0
-TSX:XUT,XUT.TO,iShares S&P/TSX Capped Utilities ETF,Utilities,ETF,TSX,CAD,True,BENCHMARK,0
-TSX:CSH.UN,CSH-UN.TO,Chartwell Retirement Residences,Real Estate,Senior Housing REIT,TSX,CAD,False,TBD,0
-TSX:GIB.A,GIB-A.TO,CGI Group,Technology,IT Services,TSX,CAD,False,TBD,0
-TSX:SVI,SVI.TO,StorageVault Canada,Real Estate,Self-Storage REIT,TSX,CAD,False,TBD,0
-TSX:QSR,QSR.TO,Restaurant Brands International,Consumer Discretionary,QSR Franchising,TSX,CAD,False,TBD,0
-TSX:FTS,FTS.TO,Fortis Inc.,Utilities,Electric/Gas Utility,TSX,CAD,False,TBD,0
-TSX:CCL.B,CCL-B.TO,CCL Industries,Materials,Specialty Packaging,TSX,CAD,False,TBD,0
-TSX:CP,CP.TO,Canadian Pacific Kansas City,Industrials,Rail Transportation,TSX,CAD,False,TBD,0
-TSX:CAR.UN,CAR-UN.TO,CAPREIT,Real Estate,Residential REIT,TSX,CAD,False,TBD,0
-TSX:RCH,RCH.TO,Richelieu Hardware,Industrials,Specialty Distribution,TSX,CAD,False,TBD,0
-TSX:WCN,WCN.TO,Waste Connections,Industrials,Waste Management,TSX,CAD,False,TBD,0
-TSX:CSU,CSU.TO,Constellation Software,Technology,Vertical Market Software,TSX,CAD,False,TBD,0
-TSX:DSG,DSG.TO,Descartes Systems Group,Technology,Logistics SaaS,TSX,CAD,False,TBD,0
-TSX:ATS,ATS.TO,ATS Corporation,Industrials,Automation Systems,TSX,CAD,False,TBD,0
-TSX:RCI.B,RCI-B.TO,Rogers Communications,Communication Services,Telecom,TSX,CAD,False,TBD,0
-NASDAQ:LULU,LULU,Lululemon Athletica,Consumer Discretionary,Athletic Apparel,NASDAQ,USD,False,TBD,0
-TSX:CTC.A,CTC-A.TO,Canadian Tire,Consumer Discretionary,General Merchandise,TSX,CAD,False,TBD,0
-TSX:MTY,MTY.TO,MTY Food Group,Consumer Discretionary,QSR Franchising,TSX,CAD,False,TBD,0
-TSX:MG,MG.TO,Magna International,Consumer Discretionary,Auto Parts,TSX,CAD,False,TBD,0
-TSX:LNR,LNR.TO,Linamar Corporation,Consumer Discretionary,Auto Parts,TSX,CAD,False,TBD,0
-NYSE:GIL,GIL,Gildan Activewear,Consumer Discretionary,Apparel Manufacturing,NYSE,USD,False,TBD,0
+ciq_symbol,yahoo_symbol,company,sector,industry,country,currency,is_etf,benchmark_role,analyst,active,notes
+IQ_SYMBOL_EXAMPLE,DOL.TO,EXAMPLE_COMPANY_DO_NOT_USE,Consumer Staples,Discount Retail,Canada,CAD,FALSE,,FIEUS_ANALYST_NAME,TRUE,EXAMPLE ROW — replace with real data
+TSX:DOL,DOL.TO,Dollarama,Consumer Staples,Discount Retail,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:ONEX,ONEX.TO,Onex Corporation,Financials,Private Equity,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:SHOP,SHOP.TO,Shopify,Technology,E-Commerce Platform,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:WSP,WSP.TO,WSP Global,Industrials,Engineering Consulting,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:L,L.TO,Loblaw Companies,Consumer Staples,Grocery Retail,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:NA,NA.TO,National Bank of Canada,Financials,Banking,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:SJ,SJ.TO,Stella-Jones,Materials,Wood Products,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:RY,RY.TO,Royal Bank of Canada,Financials,Banking,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:SIS,SIS.TO,Savaria Corporation,Healthcare,Accessibility Solutions,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:QBR.B,QBR-B.TO,Quebecor,Communication Services,Telecom/Media,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:SLF,SLF.TO,Sun Life Financial,Financials,Insurance,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:TD,TD.TO,TD Bank,Financials,Banking,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:BBD.B,BBD-B.TO,Bombardier,Industrials,Aerospace,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:ATD,ATD.TO,Alimentation Couche-Tard,Consumer Discretionary,Convenience/Fuel Retail,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:CSH.UN,CSH-UN.TO,Chartwell Retirement Residences,Real Estate,Senior Housing REIT,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:GIB.A,GIB-A.TO,CGI Group,Technology,IT Services,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:SVI,SVI.TO,StorageVault Canada,Real Estate,Self-Storage REIT,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:QSR,QSR.TO,Restaurant Brands International,Consumer Discretionary,QSR Franchising,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:FTS,FTS.TO,Fortis Inc.,Utilities,Electric/Gas Utility,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:CCL.B,CCL-B.TO,CCL Industries,Materials,Specialty Packaging,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:CP,CP.TO,Canadian Pacific Kansas City,Industrials,Rail Transportation,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:CAR.UN,CAR-UN.TO,CAPREIT,Real Estate,Residential REIT,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:RCH,RCH.TO,Richelieu Hardware,Industrials,Specialty Distribution,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:WCN,WCN.TO,Waste Connections,Industrials,Waste Management,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:CSU,CSU.TO,Constellation Software,Technology,Vertical Market Software,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:DSG,DSG.TO,Descartes Systems Group,Technology,Logistics SaaS,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:ATS,ATS.TO,ATS Corporation,Industrials,Automation Systems,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:RCI.B,RCI-B.TO,Rogers Communications,Communication Services,Telecom,Canada,CAD,FALSE,,TBD,TRUE,
+NASDAQ:LULU,LULU,Lululemon Athletica,Consumer Discretionary,Athletic Apparel,United States,USD,FALSE,,TBD,TRUE,
+TSX:CTC.A,CTC-A.TO,Canadian Tire,Consumer Discretionary,General Merchandise,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:MTY,MTY.TO,MTY Food Group,Consumer Discretionary,QSR Franchising,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:MG,MG.TO,Magna International,Consumer Discretionary,Auto Parts,Canada,CAD,FALSE,,TBD,TRUE,
+TSX:LNR,LNR.TO,Linamar Corporation,Consumer Discretionary,Auto Parts,Canada,CAD,FALSE,,TBD,TRUE,
+NYSE:GIL,GIL,Gildan Activewear,Consumer Discretionary,Apparel Manufacturing,Canada,USD,FALSE,,TBD,TRUE,
+TSX:XMA,XMA.TO,iShares S&P/TSX Capped Materials ETF,Materials,,Canada,CAD,TRUE,Materials benchmark,BENCHMARK,TRUE,Sector ETF benchmark
+TSX:XFN,XFN.TO,iShares S&P/TSX Capped Financials ETF,Financials,,Canada,CAD,TRUE,Financials benchmark,BENCHMARK,TRUE,Sector ETF benchmark
+TSX:XIT,XIT.TO,iShares S&P/TSX Capped Info Tech ETF,Technology,,Canada,CAD,TRUE,Technology benchmark,BENCHMARK,TRUE,Sector ETF benchmark
+TSX:XUT,XUT.TO,iShares S&P/TSX Capped Utilities ETF,Utilities,,Canada,CAD,TRUE,Utilities benchmark,BENCHMARK,TRUE,Sector ETF benchmark
